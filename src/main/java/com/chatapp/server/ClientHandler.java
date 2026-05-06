@@ -30,7 +30,21 @@ public class ClientHandler implements Runnable {
             }
         } catch (IOException | ClassNotFoundException e) {
             System.out.println("[Server] client gone: " + e.getMessage());
+        } finally {
+            cleanup();
         }
+    }
+
+    private void cleanup() {
+        try {
+            if (username != null) {
+                server.unregister(username);
+                server.broadcastUserList();
+            }
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (!socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
     }
 
     private void handle(Message msg) throws IOException {
