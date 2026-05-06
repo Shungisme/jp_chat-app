@@ -26,16 +26,25 @@ public class ClientHandler implements Runnable {
             in = new ObjectInputStream(socket.getInputStream());
             Object obj;
             while ((obj = in.readObject()) != null) {
-                if (obj instanceof Message msg) {
-                    System.out.println("[Server] received " + msg);
-                }
+                if (obj instanceof Message msg) handle(msg);
             }
         } catch (IOException | ClassNotFoundException e) {
             System.out.println("[Server] client gone: " + e.getMessage());
         }
     }
 
+    private void handle(Message msg) throws IOException {
+        switch (msg.getType()) {
+            case CHAT -> server.route(msg);
+            case LOGOUT -> {
+                if (username != null) server.unregister(username);
+            }
+            default -> System.out.println("[Server] unhandled: " + msg);
+        }
+    }
+
     public String getUsername() { return username; }
+    public void setUsername(String u) { this.username = u; }
 
     public void send(Message msg) throws IOException {
         out.writeObject(msg);
