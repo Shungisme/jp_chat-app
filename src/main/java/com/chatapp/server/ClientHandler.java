@@ -1,0 +1,67 @@
+package com.chatapp.server;
+
+import com.chatapp.model.Message;
+
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+
+public class ClientHandler implements Runnable {
+    private final Socket socket;
+    private final Server server;
+    private ObjectInputStream in;
+    private ObjectOutputStream out;
+    private String username;
+
+    public ClientHandler(Socket socket, Server server) {
+        this.socket = socket;
+        this.server = server;
+    }
+
+    @Override
+    public void run() {
+        try {
+            out = new ObjectOutputStream(socket.getOutputStream());
+            in = new ObjectInputStream(socket.getInputStream());
+            Object obj;
+            while ((obj = in.readObject()) != null) {
+                if (obj instanceof Message msg) handle(msg);
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("[Server] client gone: " + e.getMessage());
+        } finally {
+            cleanup();
+        }
+    }
+
+    private void cleanup() {
+        try {
+            if (username != null) {
+                server.unregister(username);
+                server.broadcastUserList();
+            }
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (!socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
+    }
+
+    private void handle(Message msg) throws IOException {
+        switch (msg.getType()) {
+            case CHAT -> server.route(msg);
+            case LOGOUT -> {
+                if (username != null) server.unregister(username);
+            }
+            default -> System.out.println("[Server] unhandled: " + msg);
+        }
+    }
+
+    public String getUsername() { return username; }
+    public void setUsername(String u) { this.username = u; }
+
+    public void send(Message msg) throws IOException {
+        out.writeObject(msg);
+        out.flush();
+    }
+}
