@@ -2,6 +2,7 @@ package com.chatapp.client;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 
 public class RegisterFrame extends JFrame {
     private final JTextField usernameField = new JTextField(18);
@@ -30,8 +31,25 @@ public class RegisterFrame extends JFrame {
         buttons.add(backButton);
         c.gridx = 0; c.gridy = 3; c.gridwidth = 2; add(buttons, c);
 
+        registerButton.addActionListener(this::onSubmit);
+        backButton.addActionListener(e -> dispose());
+
         pack();
         setLocationRelativeTo(null);
+    }
+
+    private void onSubmit(ActionEvent e) {
+        String u = usernameField.getText().trim();
+        String p = new String(passwordField.getPassword());
+        String c = new String(confirmField.getPassword());
+        if (u.length() < 3) { error("Tài khoản phải có ít nhất 3 ký tự."); return; }
+        if (p.length() < 6) { error("Mật khẩu phải có ít nhất 6 ký tự."); return; }
+        if (!p.equals(c)) { error("Mật khẩu xác nhận không khớp."); return; }
+        JOptionPane.showMessageDialog(this, "Form hợp lệ — sẽ gửi tới server.");
+    }
+
+    private void error(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Lỗi", JOptionPane.ERROR_MESSAGE);
     }
 
     public static void main(String[] args) {
