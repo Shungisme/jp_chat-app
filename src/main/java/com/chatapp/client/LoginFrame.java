@@ -1,8 +1,12 @@
 package com.chatapp.client;
 
+import com.chatapp.model.Message;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.*;
+import java.net.Socket;
 
 public class LoginFrame extends JFrame {
     private final JTextField usernameField = new JTextField(18);
@@ -36,7 +40,31 @@ public class LoginFrame extends JFrame {
     }
 
     protected void onLogin(ActionEvent e) {
-        JOptionPane.showMessageDialog(this, "TODO: kết nối server.");
+        String u = usernameField.getText().trim();
+        String p = new String(passwordField.getPassword());
+        if (u.isEmpty() || p.isEmpty()) {
+            error("Vui lòng nhập đủ tài khoản và mật khẩu.");
+            return;
+        }
+        try (Socket s = new Socket("127.0.0.1", 9999);
+             ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+             ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
+            out.writeObject(new Message(Message.Type.LOGIN, u, "server", u + ":" + p));
+            out.flush();
+            Object reply = in.readObject();
+            if (reply instanceof Message ack && "LOGIN_OK".equals(ack.getContent())) {
+                JOptionPane.showMessageDialog(this, "Đăng nhập thành công.");
+                dispose();
+            } else {
+                error("Sai tài khoản hoặc mật khẩu.");
+            }
+        } catch (Exception ex) {
+            error("Không thể kết nối tới server: " + ex.getMessage());
+        }
+    }
+
+    private void error(String msg) {
+        JOptionPane.showMessageDialog(this, msg, "Lỗi", JOptionPane.ERROR_MESSAGE);
     }
 
     public static void main(String[] args) {
