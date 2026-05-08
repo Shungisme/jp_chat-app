@@ -1,8 +1,12 @@
 package com.chatapp.client;
 
+import com.chatapp.model.Message;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.*;
+import java.net.Socket;
 
 public class RegisterFrame extends JFrame {
     private final JTextField usernameField = new JTextField(18);
@@ -45,7 +49,27 @@ public class RegisterFrame extends JFrame {
         if (u.length() < 3) { error("Tài khoản phải có ít nhất 3 ký tự."); return; }
         if (p.length() < 6) { error("Mật khẩu phải có ít nhất 6 ký tự."); return; }
         if (!p.equals(c)) { error("Mật khẩu xác nhận không khớp."); return; }
-        JOptionPane.showMessageDialog(this, "Form hợp lệ — sẽ gửi tới server.");
+        sendRegister(u, p);
+    }
+
+    private void sendRegister(String username, String password) {
+        try (Socket s = new Socket("127.0.0.1", 9999);
+             ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+             ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
+            Message m = new Message(Message.Type.REGISTER, username, "server",
+                    username + ":" + password);
+            out.writeObject(m);
+            out.flush();
+            Object reply = in.readObject();
+            if (reply instanceof Message ack && "REGISTER_OK".equals(ack.getContent())) {
+                JOptionPane.showMessageDialog(this, "Đăng ký thành công.");
+                dispose();
+            } else {
+                error("Tài khoản đã tồn tại.");
+            }
+        } catch (Exception ex) {
+            error("Không thể kết nối tới server: " + ex.getMessage());
+        }
     }
 
     private void error(String msg) {
