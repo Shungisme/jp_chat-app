@@ -17,6 +17,7 @@ public class Server {
     private volatile boolean running;
     private final ExecutorService pool = Executors.newCachedThreadPool();
     private final Map<String, ClientHandler> clients = new ConcurrentHashMap<>();
+    private final UserStore users = new UserStore();
 
     public void start() throws IOException {
         serverSocket = new ServerSocket(PORT);
@@ -27,6 +28,8 @@ public class Server {
             pool.submit(new ClientHandler(client, this));
         }
     }
+
+    public UserStore users() { return users; }
 
     public void register(String username, ClientHandler handler) {
         clients.put(username, handler);

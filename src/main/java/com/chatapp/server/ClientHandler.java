@@ -49,6 +49,12 @@ public class ClientHandler implements Runnable {
 
     private void handle(Message msg) throws IOException {
         switch (msg.getType()) {
+            case REGISTER -> {
+                String[] cred = msg.getContent().split(":", 2);
+                boolean ok = cred.length == 2 && server.users().register(cred[0], cred[1]);
+                send(new Message(Message.Type.ACK, "server", msg.getSender(),
+                        ok ? "REGISTER_OK" : "REGISTER_FAIL"));
+            }
             case CHAT -> server.route(msg);
             case LOGOUT -> {
                 if (username != null) server.unregister(username);
