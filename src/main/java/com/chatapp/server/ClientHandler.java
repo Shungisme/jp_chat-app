@@ -55,9 +55,24 @@ public class ClientHandler implements Runnable {
                 send(new Message(Message.Type.ACK, "server", msg.getSender(),
                         ok ? "REGISTER_OK" : "REGISTER_FAIL"));
             }
+            case LOGIN -> {
+                String[] cred = msg.getContent().split(":", 2);
+                if (cred.length == 2 && server.users().authenticate(cred[0], cred[1])) {
+                    username = cred[0];
+                    server.register(username, this);
+                    send(new Message(Message.Type.ACK, "server", username, "LOGIN_OK"));
+                    server.broadcastUserList();
+                } else {
+                    send(new Message(Message.Type.ACK, "server", msg.getSender(), "LOGIN_FAIL"));
+                }
+            }
             case CHAT -> server.route(msg);
+            case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
-                if (username != null) server.unregister(username);
+                if (username != null) {
+                    server.unregister(username);
+                    server.broadcastUserList();
+                }
             }
             default -> System.out.println("[Server] unhandled: " + msg);
         }
