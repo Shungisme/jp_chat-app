@@ -66,7 +66,10 @@ public class ClientHandler implements Runnable {
                     send(new Message(Message.Type.ACK, "server", msg.getSender(), "LOGIN_FAIL"));
                 }
             }
-            case CHAT -> server.route(msg);
+            case CHAT -> {
+                ClientHandler target = server.get(msg.getTarget());
+                if (target != null) target.send(msg);
+            }
             case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
                 if (username != null) {
