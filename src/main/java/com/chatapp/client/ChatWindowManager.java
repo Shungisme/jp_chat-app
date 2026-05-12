@@ -2,6 +2,7 @@ package com.chatapp.client;
 
 import com.chatapp.model.Message;
 
+import javax.swing.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,10 +27,14 @@ public class ChatWindowManager {
         if (f != null) f.dispose();
     }
 
+    // Incoming messages route by SENDER (the other party); outgoing route by TARGET.
     public void dispatch(Message msg) {
-        String key = msg.getSender();
-        ChatFrame f = windows.get(key);
-        if (f == null) f = openWith(key);
-        f.receive(msg);
+        String key = msg.getSender().equals(client.getUsername())
+                ? msg.getTarget() : msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            ChatFrame f = windows.get(key);
+            if (f == null) f = openWith(key);
+            f.receive(msg);
+        });
     }
 }
