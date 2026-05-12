@@ -6,10 +6,13 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainFrame extends JFrame {
     protected final DefaultListModel<String> usersModel = new DefaultListModel<>();
     private final JList<String> usersList = new JList<>(usersModel);
+    private final Map<String, Integer> badges = new HashMap<>();
     protected Client client;
     protected ChatWindowManager windows;
 
@@ -17,6 +20,8 @@ public class MainFrame extends JFrame {
         super("ChatApp — " + client.getUsername());
         this.client = client;
         this.windows = new ChatWindowManager(client);
+        this.windows.setBadgeListener(this::setBadge);
+
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(360, 480);
         setLocationRelativeTo(null);
@@ -24,6 +29,17 @@ public class MainFrame extends JFrame {
         setLayout(new BorderLayout());
         add(new JLabel("Đang online (double-click để chat):"), BorderLayout.NORTH);
         add(new JScrollPane(usersList), BorderLayout.CENTER);
+
+        usersList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                String name = String.valueOf(value);
+                Integer n = badges.get(name);
+                String text = (n != null && n > 0) ? name + "  (" + n + ")" : name;
+                return super.getListCellRendererComponent(list, text, index, isSelected, cellHasFocus);
+            }
+        });
 
         usersList.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
@@ -33,6 +49,11 @@ public class MainFrame extends JFrame {
                 }
             }
         });
+    }
+
+    private void setBadge(String peer, int count) {
+        if (count <= 0) badges.remove(peer); else badges.put(peer, count);
+        usersList.repaint();
     }
 
     public void onMessage(Message msg) {
