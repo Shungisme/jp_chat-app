@@ -21,7 +21,10 @@ public class GroupStore {
 
     public boolean remove(String groupName, String username) {
         Group g = groups.get(groupName);
-        return g != null && g.remove(username);
+        if (g == null) return false;
+        boolean removed = g.remove(username);
+        if (removed && g.getMembers().isEmpty()) groups.remove(groupName);
+        return removed;
     }
 
     public Map<String, Group> all() { return groups; }
