@@ -1,5 +1,6 @@
 package com.chatapp.server;
 
+import com.chatapp.model.Group;
 import com.chatapp.model.Message;
 
 import java.io.IOException;
@@ -70,6 +71,18 @@ public class ClientHandler implements Runnable {
                 ClientHandler target = server.get(msg.getTarget());
                 if (target != null) target.send(msg);
             }
+            case GROUP_CREATE -> {
+                String[] parts = msg.getContent().split(",");
+                if (parts.length >= 1) {
+                    Group g = server.groups().create(parts[0], msg.getSender());
+                    for (int i = 1; i < parts.length; i++) g.add(parts[i]);
+                }
+            }
+            case GROUP_INVITE -> {
+                String[] parts = msg.getContent().split(":", 2);
+                if (parts.length == 2) server.groups().invite(parts[0], parts[1]);
+            }
+            case GROUP_CHAT -> server.broadcastGroup(msg);
             case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
                 if (username != null) {
