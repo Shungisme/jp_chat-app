@@ -12,10 +12,15 @@ public class FileTransfer {
     public static final int CHUNK_SIZE = 4096;
 
     public static Message buildFileMessage(String sender, String target, Path file) throws IOException {
-        byte[] data = Files.readAllBytes(file);
-        String b64 = Base64.getEncoder().encodeToString(data);
-        String content = file.getFileName().toString() + "|" + b64;
-        return new Message(Message.Type.FILE, sender, target, content);
+        try (InputStream is = Files.newInputStream(file);
+             ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[CHUNK_SIZE];
+            int n;
+            while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
+            String b64 = Base64.getEncoder().encodeToString(bos.toByteArray());
+            String content = file.getFileName().toString() + "|" + b64;
+            return new Message(Message.Type.FILE, sender, target, content);
+        }
     }
 
     public static Path saveIncoming(Message msg, Path dir) throws IOException {
@@ -23,7 +28,9 @@ public class FileTransfer {
         String[] parts = msg.getContent().split("\\|", 2);
         if (parts.length != 2) throw new IOException("malformed FILE message");
         Path out = dir.resolve(parts[0]);
-        Files.write(out, Base64.getDecoder().decode(parts[1]));
+        try (OutputStream os = Files.newOutputStream(out)) {
+            os.write(Base64.getDecoder().decode(parts[1]));
+        }
         return out;
     }
 
