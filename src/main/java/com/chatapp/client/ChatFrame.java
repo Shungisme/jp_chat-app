@@ -1,10 +1,13 @@
 package com.chatapp.client;
 
 import com.chatapp.model.Message;
+import com.chatapp.util.FileTransfer;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.File;
+import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
@@ -14,6 +17,7 @@ public class ChatFrame extends JFrame {
     private final JTextArea history = new JTextArea();
     private final JTextField input = new JTextField();
     private final JButton sendButton = new JButton("Gửi");
+    private final JButton fileButton = new JButton("📎");
     protected final Client client;
     protected final String peer;
 
@@ -33,12 +37,16 @@ public class ChatFrame extends JFrame {
 
         JPanel bottom = new JPanel(new BorderLayout(4, 0));
         bottom.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        right.add(fileButton);
+        right.add(sendButton);
         bottom.add(input, BorderLayout.CENTER);
-        bottom.add(sendButton, BorderLayout.EAST);
+        bottom.add(right, BorderLayout.EAST);
         add(bottom, BorderLayout.SOUTH);
 
         sendButton.addActionListener(this::onSend);
         input.addActionListener(this::onSend);
+        fileButton.addActionListener(this::onPickFile);
     }
 
     protected void onSend(ActionEvent e) {
@@ -54,8 +62,28 @@ public class ChatFrame extends JFrame {
         }
     }
 
+    protected void onPickFile(ActionEvent e) {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        File f = chooser.getSelectedFile();
+        try {
+            Message m = FileTransfer.buildFileMessage(client.getUsername(), peer, Path.of(f.getAbsolutePath()));
+            client.send(m);
+            appendLine("Tôi", "[file] " + f.getName());
+        } catch (Exception ex) {
+            appendLine("[lỗi file]", ex.getMessage());
+        }
+    }
+
     public void receive(Message m) {
-        SwingUtilities.invokeLater(() -> appendLine(m.getSender(), m.getContent()));
+        SwingUtilities.invokeLater(() -> {
+            if (m.getType() == Message.Type.FILE) {
+                String[] parts = m.getContent().split("\\|", 2);
+                appendLine(m.getSender(), "[file] " + (parts.length > 0 ? parts[0] : "(unknown)"));
+            } else {
+                appendLine(m.getSender(), m.getContent());
+            }
+        });
     }
 
     protected void appendLine(String who, String text) {
