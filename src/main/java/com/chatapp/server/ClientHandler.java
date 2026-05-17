@@ -71,11 +71,15 @@ public class ClientHandler implements Runnable {
                 ClientHandler target = server.get(msg.getTarget());
                 if (target != null) target.send(msg);
             }
+            case FILE -> {
+                ClientHandler target = server.get(msg.getTarget());
+                if (target != null) target.send(msg);
+            }
             case GROUP_CREATE -> {
                 String[] parts = msg.getContent().split(",");
                 if (parts.length >= 1) {
                     Group g = server.groups().create(parts[0], msg.getSender());
-                    for (int i = 1; i < parts.length; i++) g.add(parts[i]);
+                    if (g != null) for (int i = 1; i < parts.length; i++) g.add(parts[i]);
                 }
             }
             case GROUP_INVITE -> {
