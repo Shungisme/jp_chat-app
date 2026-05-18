@@ -39,6 +39,27 @@ public class HistoryManager {
         }
     }
 
+    // Deletes the message at the given zero-based line index.
+    public static synchronized boolean deleteAt(String me, String peer, int index) {
+        try {
+            Path f = fileFor(me, peer);
+            if (!Files.exists(f)) return false;
+            List<String> lines = new ArrayList<>(Files.readAllLines(f, StandardCharsets.UTF_8));
+            if (index < 0 || index >= lines.size()) return false;
+            lines.remove(index);
+            Files.write(f, lines, StandardCharsets.UTF_8);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    public static synchronized void clear(String me, String peer) {
+        try {
+            Files.deleteIfExists(fileFor(me, peer));
+        } catch (IOException ignored) {}
+    }
+
     private static String safe(String s) {
         return s == null ? "" : s.replace("\n", "\\n");
     }
