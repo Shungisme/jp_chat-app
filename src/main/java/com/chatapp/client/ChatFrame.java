@@ -2,6 +2,7 @@ package com.chatapp.client;
 
 import com.chatapp.model.Message;
 import com.chatapp.util.FileTransfer;
+import com.chatapp.util.HistoryManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -10,6 +11,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class ChatFrame extends JFrame {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -18,6 +20,7 @@ public class ChatFrame extends JFrame {
     private final JTextField input = new JTextField();
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
+    private final JButton historyButton = new JButton("Lịch sử");
     protected final Client client;
     protected final String peer;
 
@@ -38,6 +41,7 @@ public class ChatFrame extends JFrame {
         JPanel bottom = new JPanel(new BorderLayout(4, 0));
         bottom.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        right.add(historyButton);
         right.add(fileButton);
         right.add(sendButton);
         bottom.add(input, BorderLayout.CENTER);
@@ -47,6 +51,14 @@ public class ChatFrame extends JFrame {
         sendButton.addActionListener(this::onSend);
         input.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
+        historyButton.addActionListener(e -> new HistoryFrame(client.getUsername(), peer).setVisible(true));
+
+        loadHistory();
+    }
+
+    private void loadHistory() {
+        List<String> lines = HistoryManager.load(client.getUsername(), peer);
+        for (String l : lines) history.append("(cũ) " + l + "\n");
     }
 
     protected void onSend(ActionEvent e) {
@@ -55,6 +67,7 @@ public class ChatFrame extends JFrame {
         Message m = new Message(Message.Type.CHAT, client.getUsername(), peer, text);
         try {
             client.send(m);
+            HistoryManager.append(client.getUsername(), peer, m);
             appendLine("Tôi", text);
             input.setText("");
         } catch (Exception ex) {
@@ -69,6 +82,8 @@ public class ChatFrame extends JFrame {
         try {
             Message m = FileTransfer.buildFileMessage(client.getUsername(), peer, Path.of(f.getAbsolutePath()));
             client.send(m);
+            HistoryManager.append(client.getUsername(), peer,
+                    new Message(Message.Type.FILE, client.getUsername(), peer, f.getName()));
             appendLine("Tôi", "[file] " + f.getName());
         } catch (Exception ex) {
             appendLine("[lỗi file]", ex.getMessage());
@@ -77,6 +92,7 @@ public class ChatFrame extends JFrame {
 
     public void receive(Message m) {
         SwingUtilities.invokeLater(() -> {
+            HistoryManager.append(client.getUsername(), peer, m);
             if (m.getType() == Message.Type.FILE) {
                 String[] parts = m.getContent().split("\\|", 2);
                 appendLine(m.getSender(), "[file] " + (parts.length > 0 ? parts[0] : "(unknown)"));
