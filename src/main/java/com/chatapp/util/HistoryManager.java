@@ -33,13 +33,24 @@ public class HistoryManager {
         try {
             Path f = fileFor(me, peer);
             if (!Files.exists(f)) return List.of();
-            return new ArrayList<>(Files.readAllLines(f, StandardCharsets.UTF_8));
+            List<String> raw = Files.readAllLines(f, StandardCharsets.UTF_8);
+            List<String> valid = new ArrayList<>();
+            for (String line : raw) {
+                if (line == null || line.isBlank()) continue;
+                // skip lines that fail the expected "ts|sender|type|content" shape
+                if (line.split("\\|", 4).length < 4) {
+                    System.err.println("[History] skipping malformed line: " + line);
+                    continue;
+                }
+                valid.add(line);
+            }
+            return valid;
         } catch (IOException e) {
+            System.err.println("[History] load failed (corrupted?): " + e.getMessage());
             return List.of();
         }
     }
 
-    // Deletes the message at the given zero-based line index.
     public static synchronized boolean deleteAt(String me, String peer, int index) {
         try {
             Path f = fileFor(me, peer);
