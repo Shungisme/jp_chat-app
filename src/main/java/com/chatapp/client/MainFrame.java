@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,8 +27,16 @@ public class MainFrame extends JFrame {
         setSize(360, 480);
         setLocationRelativeTo(null);
 
+        URL iconUrl = getClass().getResource("/icons/app.png");
+        if (iconUrl != null) setIconImage(new ImageIcon(iconUrl).getImage());
+
         setLayout(new BorderLayout());
-        add(new JLabel("Đang online (double-click để chat):"), BorderLayout.NORTH);
+        JLabel header = new JLabel("Đang online (double-click để chat):");
+        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
+        add(header, BorderLayout.NORTH);
+
+        usersList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         add(new JScrollPane(usersList), BorderLayout.CENTER);
 
         usersList.setCellRenderer(new DefaultListCellRenderer() {
