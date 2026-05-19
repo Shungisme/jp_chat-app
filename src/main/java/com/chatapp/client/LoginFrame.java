@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.*;
 import java.net.Socket;
+import java.net.URL;
 
 public class LoginFrame extends JFrame {
     private final JTextField usernameField = new JTextField(18);
@@ -17,23 +18,34 @@ public class LoginFrame extends JFrame {
     public LoginFrame() {
         super("ChatApp — Đăng nhập");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setLayout(new GridBagLayout());
+
+        URL iconUrl = getClass().getResource("/icons/app.png");
+        if (iconUrl != null) setIconImage(new ImageIcon(iconUrl).getImage());
+
+        JPanel root = new JPanel(new GridBagLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(16, 24, 16, 24));
+        setContentPane(root);
+
         GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(8, 8, 8, 8);
+        c.insets = new Insets(6, 6, 6, 6);
         c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.HORIZONTAL;
 
-        c.gridx = 0; c.gridy = 0; add(new JLabel("Tài khoản:"), c);
-        c.gridx = 1; add(usernameField, c);
-        c.gridx = 0; c.gridy = 1; add(new JLabel("Mật khẩu:"), c);
-        c.gridx = 1; add(passwordField, c);
+        c.gridx = 0; c.gridy = 0; root.add(new JLabel("Tài khoản:"), c);
+        c.gridx = 1; root.add(usernameField, c);
+        c.gridx = 0; c.gridy = 1; root.add(new JLabel("Mật khẩu:"), c);
+        c.gridx = 1; root.add(passwordField, c);
 
-        JPanel buttons = new JPanel();
-        buttons.add(loginButton);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         buttons.add(registerButton);
-        c.gridx = 0; c.gridy = 2; c.gridwidth = 2; add(buttons, c);
+        buttons.add(loginButton);
+        c.gridx = 0; c.gridy = 2; c.gridwidth = 2;
+        c.insets = new Insets(12, 6, 0, 6);
+        root.add(buttons, c);
 
         registerButton.addActionListener(e -> new RegisterFrame().setVisible(true));
         loginButton.addActionListener(this::onLogin);
+        getRootPane().setDefaultButton(loginButton);
 
         pack();
         setLocationRelativeTo(null);
