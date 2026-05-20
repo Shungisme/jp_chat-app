@@ -5,8 +5,6 @@ import com.chatapp.model.Message;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.io.*;
-import java.net.Socket;
 import java.net.URL;
 
 public class LoginFrame extends JFrame {
@@ -58,19 +56,24 @@ public class LoginFrame extends JFrame {
             error("Vui lòng nhập đủ tài khoản và mật khẩu.");
             return;
         }
-        try (Socket s = new Socket("127.0.0.1", 9999);
-             ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
-             ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
-            out.writeObject(new Message(Message.Type.LOGIN, u, "server", u + ":" + p));
-            out.flush();
-            Object reply = in.readObject();
-            if (reply instanceof Message ack && "LOGIN_OK".equals(ack.getContent())) {
-                JOptionPane.showMessageDialog(this, "Đăng nhập thành công.");
+
+        Client client = new Client("127.0.0.1", 9999);
+        try {
+            client.connect(u);
+            client.send(new Message(Message.Type.LOGIN, u, "server", u + ":" + p));
+            Message ack = client.receiveOnce();
+            if (ack != null && ack.getType() == Message.Type.ACK
+                    && "LOGIN_OK".equals(ack.getContent())) {
+                MainFrame main = new MainFrame(client);
+                client.start(main::onMessage);
+                main.setVisible(true);
                 dispose();
             } else {
+                client.close();
                 error("Sai tài khoản hoặc mật khẩu.");
             }
         } catch (Exception ex) {
+            try { client.close(); } catch (Exception ignored) {}
             error("Không thể kết nối tới server: " + ex.getMessage());
         }
     }

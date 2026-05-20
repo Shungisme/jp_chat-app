@@ -25,11 +25,26 @@ public class Client {
         this.port = port;
     }
 
+    // Open streams only — do NOT start the reader yet. The login handshake
+    // needs to read the ACK synchronously before a listener is wired up.
     public void connect(String username) throws IOException {
         this.username = username;
         socket = new Socket(host, port);
         out = new ObjectOutputStream(socket.getOutputStream());
         in = new ObjectInputStream(socket.getInputStream());
+    }
+
+    // Blocks until one Message arrives. Used during login.
+    public Message receiveOnce() throws IOException, ClassNotFoundException {
+        Object obj = in.readObject();
+        return (Message) obj;
+    }
+
+    // Start the background reader. Call after the login handshake succeeds,
+    // passing the listener that will receive subsequent messages.
+    public void start(Consumer<Message> listener) {
+        this.listener = listener;
+        if (running) return;
         running = true;
         reader = new Thread(this::readLoop, "client-reader");
         reader.setDaemon(true);
