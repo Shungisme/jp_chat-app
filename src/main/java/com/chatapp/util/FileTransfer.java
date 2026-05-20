@@ -42,12 +42,12 @@ public class FileTransfer {
         d.pack();
         d.setSize(280, 80);
         d.setLocationRelativeTo(parent);
-        d.putClientProperty("progressBar", bar);
+        d.getRootPane().putClientProperty("progressBar", bar);
         return d;
     }
 
     public static void setProgress(JDialog dialog, int percent) {
-        JProgressBar bar = (JProgressBar) dialog.getClientProperty("progressBar");
+        JProgressBar bar = (JProgressBar) dialog.getRootPane().getClientProperty("progressBar");
         if (bar != null) bar.setValue(percent);
     }
 }
