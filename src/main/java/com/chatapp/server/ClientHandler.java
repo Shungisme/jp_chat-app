@@ -87,6 +87,10 @@ public class ClientHandler implements Runnable {
                 if (parts.length == 2) server.groups().invite(parts[0], parts[1]);
             }
             case GROUP_CHAT -> server.broadcastGroup(msg);
+            case VOICE -> {
+                ClientHandler target = server.get(msg.getTarget());
+                if (target != null) target.send(msg);
+            }
             case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
                 if (username != null) {
