@@ -33,36 +33,51 @@ public class VoiceChat {
         micLine.open(FORMAT);
         micLine.start();
         capturing = true;
+        final TargetDataLine localLine = micLine;
         captureThread = new Thread(() -> {
             byte[] buf = new byte[BUFFER_SIZE];
-            while (capturing) {
-                int n = micLine.read(buf, 0, buf.length);
-                if (n > 0) {
+            try {
+                while (capturing) {
+                    int n = localLine.read(buf, 0, buf.length);
+                    if (n <= 0) break;
                     byte[] chunk = new byte[n];
                     System.arraycopy(buf, 0, chunk, 0, n);
                     chunkSink.accept(chunk);
                 }
+            } catch (Exception ignored) {
+                // line was closed by stopCapture() while we were blocked on read()
             }
         }, "voice-capture");
         captureThread.setDaemon(true);
         captureThread.start();
     }
 
-    public void stopCapture() {
+    public synchronized void stopCapture() {
         capturing = false;
-        if (micLine != null) {
-            micLine.stop();
-            micLine.close();
-            micLine = null;
+        TargetDataLine line = micLine;
+        Thread t = captureThread;
+        micLine = null;
+        captureThread = null;
+        if (line != null) {
+            line.stop();
+            line.close();
+        }
+        if (t != null) {
+            try {
+                t.join(500);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
-    public void stop() {
+    public synchronized void stop() {
         stopCapture();
-        if (speakerLine != null) {
-            speakerLine.stop();
-            speakerLine.close();
-            speakerLine = null;
+        SourceDataLine line = speakerLine;
+        speakerLine = null;
+        if (line != null) {
+            line.stop();
+            line.close();
         }
     }
 }
