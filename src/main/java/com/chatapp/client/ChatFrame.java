@@ -20,14 +20,17 @@ public class ChatFrame extends JFrame {
     private final JTextField input = new JTextField();
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
+    private final JButton voiceButton = new JButton("🎙");
     private final JButton historyButton = new JButton("Lịch sử");
     protected final Client client;
     protected final String peer;
+    protected final ChatWindowManager manager;
 
-    public ChatFrame(Client client, String peer) {
+    public ChatFrame(Client client, String peer, ChatWindowManager manager) {
         super("Chat với " + peer);
         this.client = client;
         this.peer = peer;
+        this.manager = manager;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(480, 360);
         setLocationRelativeTo(null);
@@ -42,6 +45,7 @@ public class ChatFrame extends JFrame {
         bottom.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         right.add(historyButton);
+        right.add(voiceButton);
         right.add(fileButton);
         right.add(sendButton);
         bottom.add(input, BorderLayout.CENTER);
@@ -51,9 +55,14 @@ public class ChatFrame extends JFrame {
         sendButton.addActionListener(this::onSend);
         input.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
+        voiceButton.addActionListener(e -> onStartVoiceCall());
         historyButton.addActionListener(e -> new HistoryFrame(client.getUsername(), peer).setVisible(true));
 
         loadHistory();
+    }
+
+    protected void onStartVoiceCall() {
+        if (manager != null) manager.openVoiceWith(peer, true);
     }
 
     private void loadHistory() {
