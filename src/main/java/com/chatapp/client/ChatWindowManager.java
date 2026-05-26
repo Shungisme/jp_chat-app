@@ -12,6 +12,7 @@ public class ChatWindowManager {
     private final Client client;
     private final Map<String, ChatFrame> windows = new ConcurrentHashMap<>();
     private final Map<String, VoiceCallFrame> voiceFrames = new ConcurrentHashMap<>();
+    private final Map<String, VideoCallFrame> videoFrames = new ConcurrentHashMap<>();
     private final Map<String, AtomicInteger> unread = new ConcurrentHashMap<>();
     private BiConsumer<String, Integer> badgeListener;
 
@@ -46,6 +47,14 @@ public class ChatWindowManager {
         });
     }
 
+    public VideoCallFrame openVideoWith(String peer, boolean callerSide) {
+        return videoFrames.computeIfAbsent(peer, p -> {
+            VideoCallFrame f = new VideoCallFrame(client, p, callerSide, videoFrames::remove);
+            f.setVisible(true);
+            return f;
+        });
+    }
+
     public void dispatch(Message msg) {
         String key = msg.getSender().equals(client.getUsername())
                 ? msg.getTarget() : msg.getSender();
@@ -66,6 +75,16 @@ public class ChatWindowManager {
         SwingUtilities.invokeLater(() -> {
             VoiceCallFrame f = voiceFrames.get(key);
             if (f == null) f = openVoiceWith(key, false);
+            f.receive(msg);
+        });
+    }
+
+    public void dispatchVideo(Message msg) {
+        String key = msg.getSender().equals(client.getUsername())
+                ? msg.getTarget() : msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            VideoCallFrame f = videoFrames.get(key);
+            if (f == null) f = openVideoWith(key, false);
             f.receive(msg);
         });
     }

@@ -77,6 +77,7 @@ public class MainFrame extends JFrame {
             });
             case CHAT -> windows.dispatch(msg);
             case VOICE -> windows.dispatchVoice(msg);
+            case VIDEO -> windows.dispatchVideo(msg);
             default -> {}
         }
     }
