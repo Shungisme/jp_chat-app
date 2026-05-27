@@ -72,10 +72,16 @@ public class VideoCallFrame extends JFrame {
             }
         });
 
-        statusLabel.setText(callerSide
-                ? "Đang gọi video " + peer + "..."
-                : "Cuộc gọi video đến từ " + peer);
-        if (callerSide) toggleCam();
+        if (!VideoCapture.isAvailable()) {
+            statusLabel.setText("Thư viện webcam chưa có — chỉ xem được video gửi tới.");
+            camButton.setEnabled(false);
+            camButton.setToolTipText("Build với 'mvn package' để dùng webcam.");
+        } else {
+            statusLabel.setText(callerSide
+                    ? "Đang gọi video " + peer + "..."
+                    : "Cuộc gọi video đến từ " + peer);
+            if (callerSide) toggleCam();
+        }
     }
 
     private JPanel wrap(JLabel view, String caption) {
