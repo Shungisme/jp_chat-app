@@ -91,6 +91,10 @@ public class ClientHandler implements Runnable {
                 ClientHandler target = server.get(msg.getTarget());
                 if (target != null) target.send(msg);
             }
+            case VIDEO -> {
+                ClientHandler target = server.get(msg.getTarget());
+                if (target != null) target.send(msg);
+            }
             case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
                 if (username != null) {

@@ -21,6 +21,7 @@ public class ChatFrame extends JFrame {
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
     private final JButton voiceButton = new JButton("🎙");
+    private final JButton videoButton = new JButton("📹");
     private final JButton historyButton = new JButton("Lịch sử");
     protected final Client client;
     protected final String peer;
@@ -46,6 +47,7 @@ public class ChatFrame extends JFrame {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         right.add(historyButton);
         right.add(voiceButton);
+        right.add(videoButton);
         right.add(fileButton);
         right.add(sendButton);
         bottom.add(input, BorderLayout.CENTER);
@@ -56,6 +58,7 @@ public class ChatFrame extends JFrame {
         input.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
         voiceButton.addActionListener(e -> onStartVoiceCall());
+        videoButton.addActionListener(e -> onStartVideoCall());
         historyButton.addActionListener(e -> new HistoryFrame(client.getUsername(), peer).setVisible(true));
 
         loadHistory();
@@ -63,6 +66,10 @@ public class ChatFrame extends JFrame {
 
     protected void onStartVoiceCall() {
         if (manager != null) manager.openVoiceWith(peer, true);
+    }
+
+    protected void onStartVideoCall() {
+        if (manager != null) manager.openVideoWith(peer, true);
     }
 
     private void loadHistory() {

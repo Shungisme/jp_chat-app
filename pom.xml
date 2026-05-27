@@ -14,6 +14,14 @@
         <main.class>com.chatapp.client.LoginFrame</main.class>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.github.sarxos</groupId>
+            <artifactId>webcam-capture</artifactId>
+            <version>0.3.12</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <finalName>chatapp</finalName>
         <plugins>
