@@ -68,6 +68,10 @@ public class VideoCallFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosed(WindowEvent e) {
                 stopCapture();
+                try {
+                    client.send(new Message(Message.Type.VIDEO_END,
+                            client.getUsername(), peer, ""));
+                } catch (Exception ignored) {}
                 if (closeCallback != null) closeCallback.accept(peer);
             }
         });

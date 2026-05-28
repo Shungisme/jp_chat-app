@@ -49,6 +49,10 @@ public class VoiceCallFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosed(WindowEvent e) {
                 voice.stop();
+                try {
+                    client.send(new Message(Message.Type.VOICE_END,
+                            client.getUsername(), peer, ""));
+                } catch (Exception ignored) {}
                 if (closeCallback != null) closeCallback.accept(peer);
             }
         });
