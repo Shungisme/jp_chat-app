@@ -16,10 +16,17 @@ public class MainFrame extends JFrame {
     private final Map<String, Integer> badges = new HashMap<>();
     protected Client client;
     protected ChatWindowManager windows;
+    protected final ServerConfig.Entry server;
 
     public MainFrame(Client client) {
-        super("ChatApp — " + client.getUsername());
+        this(client, null);
+    }
+
+    public MainFrame(Client client, ServerConfig.Entry server) {
+        super("ChatApp — " + client.getUsername()
+                + (server != null ? "  @  " + server.label() : ""));
         this.client = client;
+        this.server = server;
         this.windows = new ChatWindowManager(client);
         this.windows.setBadgeListener(this::setBadge);
 
@@ -31,9 +38,17 @@ public class MainFrame extends JFrame {
         if (iconUrl != null) setIconImage(new ImageIcon(iconUrl).getImage());
 
         setLayout(new BorderLayout());
-        JLabel header = new JLabel("Đang online (double-click để chat):");
-        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        JPanel header = new JPanel(new GridLayout(0, 1));
         header.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
+        JLabel title = new JLabel("Đang online (double-click để chat):");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.add(title);
+        if (server != null) {
+            JLabel info = new JLabel("Server: " + server.label());
+            info.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            info.setForeground(new Color(90, 90, 90));
+            header.add(info);
+        }
         add(header, BorderLayout.NORTH);
 
         usersList.setFont(new Font("Segoe UI", Font.PLAIN, 13));

@@ -14,9 +14,17 @@ public class RegisterFrame extends JFrame {
     private final JPasswordField confirmField = new JPasswordField(18);
     private final JButton registerButton = new JButton("Đăng ký");
     private final JButton backButton = new JButton("Quay lại");
+    private final String host;
+    private final int port;
 
     public RegisterFrame() {
-        super("Đăng ký tài khoản");
+        this("127.0.0.1", 9999);
+    }
+
+    public RegisterFrame(String host, int port) {
+        super("Đăng ký tài khoản — " + host + ":" + port);
+        this.host = host;
+        this.port = port;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setLayout(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -53,7 +61,7 @@ public class RegisterFrame extends JFrame {
     }
 
     private void sendRegister(String username, String password) {
-        try (Socket s = new Socket("127.0.0.1", 9999);
+        try (Socket s = new Socket(host, port);
              ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(s.getInputStream())) {
             Message m = new Message(Message.Type.REGISTER, username, "server",
