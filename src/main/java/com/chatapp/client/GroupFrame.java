@@ -27,8 +27,9 @@ public class GroupFrame extends JFrame {
         setLayout(new BorderLayout(4, 4));
 
         history.setEditable(false);
-        history.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        history.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
         add(new JScrollPane(history), BorderLayout.CENTER);
+        input.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
 
         JPanel bottom = new JPanel(new BorderLayout(4, 0));
         bottom.add(input, BorderLayout.CENTER);
