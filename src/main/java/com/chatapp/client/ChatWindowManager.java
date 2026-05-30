@@ -20,7 +20,7 @@ public class ChatWindowManager {
     private final Map<String, VideoCallFrame> videoFrames = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVoiceCalls = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
-    private final Map<String, GroupFrame> groupFrames = new ConcurrentHashMap<>();
+    private final Map<String, GroupPanel> groupPanels = new ConcurrentHashMap<>();
     private final Set<String> joinedGroups = ConcurrentHashMap.newKeySet();
     private Consumer<Set<String>> groupsListener;
     private MainFrame mainFrame;
@@ -293,14 +293,19 @@ public class ChatWindowManager {
 
     // ---------------- group chat ----------------
 
-    public GroupFrame openGroup(String groupName) {
-        GroupFrame f = groupFrames.computeIfAbsent(groupName, name -> {
-            GroupFrame nf = new GroupFrame(client, name, groupFrames::remove);
-            nf.setVisible(true);
-            return nf;
+    public GroupPanel openGroup(String groupName) {
+        GroupPanel p = groupPanels.computeIfAbsent(groupName, name -> {
+            GroupPanel np = new GroupPanel(client, name);
+            if (mainFrame != null) mainFrame.openGroupTab(name, np);
+            return np;
         });
-        f.toFront();
-        return f;
+        if (mainFrame != null) mainFrame.selectGroupTab(groupName);
+        return p;
+    }
+
+    public void closeGroup(String groupName) {
+        GroupPanel p = groupPanels.remove(groupName);
+        if (p != null && mainFrame != null) mainFrame.closeGroupTab(groupName);
     }
 
     public void handleGroupInvite(Message msg) {

@@ -150,7 +150,7 @@ public class MainFrame extends JFrame {
             if (existing >= 0) { chatTabs.setSelectedIndex(existing); return; }
             chatTabs.addTab(peer, panel);
             int idx = chatTabs.indexOfComponent(panel);
-            chatTabs.setTabComponentAt(idx, buildTabHeader(peer));
+            chatTabs.setTabComponentAt(idx, buildTabHeader(peer, () -> windows.close(peer)));
             chatTabs.setSelectedIndex(idx);
             panel.requestFocusOnInput();
         });
@@ -170,6 +170,34 @@ public class MainFrame extends JFrame {
         });
     }
 
+    public void openGroupTab(String groupName, GroupPanel panel) {
+        SwingUtilities.invokeLater(() -> {
+            int existing = indexOfTabByGroup(groupName);
+            if (existing >= 0) { chatTabs.setSelectedIndex(existing); return; }
+            String title = "👥 " + groupName;
+            chatTabs.addTab(title, panel);
+            int idx = chatTabs.indexOfComponent(panel);
+            chatTabs.setTabComponentAt(idx, buildTabHeader(title,
+                    () -> windows.closeGroup(groupName)));
+            chatTabs.setSelectedIndex(idx);
+            panel.requestFocusOnInput();
+        });
+    }
+
+    public void selectGroupTab(String groupName) {
+        SwingUtilities.invokeLater(() -> {
+            int existing = indexOfTabByGroup(groupName);
+            if (existing >= 0) chatTabs.setSelectedIndex(existing);
+        });
+    }
+
+    public void closeGroupTab(String groupName) {
+        SwingUtilities.invokeLater(() -> {
+            int existing = indexOfTabByGroup(groupName);
+            if (existing >= 0) chatTabs.remove(existing);
+        });
+    }
+
     private int indexOfTabByPeer(String peer) {
         for (int i = 0; i < chatTabs.getTabCount(); i++) {
             Component c = chatTabs.getComponentAt(i);
@@ -178,17 +206,26 @@ public class MainFrame extends JFrame {
         return -1;
     }
 
-    private JPanel buildTabHeader(String peer) {
+    private int indexOfTabByGroup(String groupName) {
+        for (int i = 0; i < chatTabs.getTabCount(); i++) {
+            Component c = chatTabs.getComponentAt(i);
+            if (c instanceof GroupPanel gp && gp.getGroupName().equals(groupName)) return i;
+        }
+        return -1;
+    }
+
+    private JPanel buildTabHeader(String title, Runnable onClose) {
         JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         header.setOpaque(false);
-        JLabel name = new JLabel(peer);
+        JLabel name = new JLabel(title);
+        name.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 12));
         name.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 4));
         JButton closeBtn = new JButton("✕");
         closeBtn.setMargin(new Insets(0, 4, 0, 4));
         closeBtn.setFocusable(false);
         closeBtn.setContentAreaFilled(false);
         closeBtn.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
-        closeBtn.addActionListener(e -> windows.close(peer));
+        closeBtn.addActionListener(e -> onClose.run());
         header.add(name);
         header.add(closeBtn);
         return header;
