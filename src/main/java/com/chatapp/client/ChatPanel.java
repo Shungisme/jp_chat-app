@@ -15,7 +15,9 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -263,7 +265,20 @@ public class ChatPanel extends JPanel {
 
     private void loadHistory() {
         List<String> lines = HistoryManager.load(client.getUsername(), peer);
-        for (String l : lines) appendStyled("(cũ) " + l + "\n");
+        ZoneId zone = ZoneId.systemDefault();
+        for (String l : lines) {
+            String[] parts = l.split("\\|", 4);
+            if (parts.length < 4) continue;
+            long ts;
+            try { ts = Long.parseLong(parts[0]); } catch (NumberFormatException ex) { continue; }
+            String sender = parts[1];
+            String type = parts[2];
+            String content = parts[3].replace("\\n", "\n");
+            String who = sender.equals(client.getUsername()) ? "Tôi" : sender;
+            String time = Instant.ofEpochMilli(ts).atZone(zone).format(TIME);
+            String body = "FILE".equals(type) ? "[file] " + content : content;
+            appendStyled("(cũ) [" + time + "] " + who + ": " + body + "\n");
+        }
     }
 
     protected void onSend(ActionEvent e) {
