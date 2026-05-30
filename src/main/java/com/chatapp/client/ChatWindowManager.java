@@ -246,6 +246,14 @@ public class ChatWindowManager {
         });
     }
 
+    // Files always auto-open the chat tab — otherwise the file would be lost
+    // if the receiver hadn't already opened a chat with the sender.
+    public void dispatchFile(Message msg) {
+        String key = msg.getSender().equals(client.getUsername())
+                ? msg.getTarget() : msg.getSender();
+        SwingUtilities.invokeLater(() -> openWith(key).receive(msg));
+    }
+
     // No auto-open — chunks only flow once both sides have accepted.
     public void dispatchVoice(Message msg) {
         String key = msg.getSender().equals(client.getUsername())

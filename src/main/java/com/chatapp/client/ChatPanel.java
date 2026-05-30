@@ -185,7 +185,7 @@ public class ChatPanel extends JPanel {
             client.send(m);
             HistoryManager.append(client.getUsername(), peer,
                     new Message(Message.Type.FILE, client.getUsername(), peer, f.getName()));
-            appendLine("Tôi", "[file] " + f.getName());
+            appendLine("Tôi", "[file] " + f.getName() + " — đã gửi (" + f.getAbsolutePath() + ")");
         } catch (Exception ex) {
             appendLine("[lỗi file]", ex.getMessage());
         }
@@ -193,11 +193,23 @@ public class ChatPanel extends JPanel {
 
     public void receive(Message m) {
         SwingUtilities.invokeLater(() -> {
-            HistoryManager.append(client.getUsername(), peer, m);
             if (m.getType() == Message.Type.FILE) {
-                String[] parts = m.getContent().split("\\|", 2);
-                appendLine(m.getSender(), "[file] " + (parts.length > 0 ? parts[0] : "(unknown)"));
+                try {
+                    Path saved = FileTransfer.saveIncoming(m,
+                            Path.of("data", "files", m.getSender()));
+                    // Don't write the base64 payload into history — slim it down.
+                    Message slim = new Message(Message.Type.FILE,
+                            m.getSender(), client.getUsername(),
+                            saved.getFileName().toString());
+                    slim.setTimestamp(m.getTimestamp());
+                    HistoryManager.append(client.getUsername(), peer, slim);
+                    appendLine(m.getSender(), "[file] " + saved.getFileName()
+                            + " — đã lưu: " + saved.toAbsolutePath());
+                } catch (Exception ex) {
+                    appendLine("[lỗi file]", ex.getMessage());
+                }
             } else {
+                HistoryManager.append(client.getUsername(), peer, m);
                 appendLine(m.getSender(), m.getContent());
             }
         });

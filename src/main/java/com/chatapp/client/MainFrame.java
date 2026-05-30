@@ -210,6 +210,7 @@ public class MainFrame extends JFrame {
                 }
             });
             case CHAT -> windows.dispatch(msg);
+            case FILE -> windows.dispatchFile(msg);
             case GROUP_CHAT -> windows.dispatchGroupChat(msg);
             case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case VOICE_INVITE -> windows.handleVoiceInvite(msg);
