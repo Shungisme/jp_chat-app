@@ -13,7 +13,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-public class ChatFrame extends JFrame {
+public class ChatPanel extends JPanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private final JTextArea history = new JTextArea();
@@ -27,15 +27,16 @@ public class ChatFrame extends JFrame {
     protected final String peer;
     protected final ChatWindowManager manager;
 
-    public ChatFrame(Client client, String peer, ChatWindowManager manager) {
-        super("Chat với " + peer);
+    public ChatPanel(Client client, String peer, ChatWindowManager manager) {
         this.client = client;
         this.peer = peer;
         this.manager = manager;
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setSize(480, 360);
-        setLocationRelativeTo(null);
         setLayout(new BorderLayout(4, 4));
+
+        JLabel header = new JLabel("Chat với " + peer);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        header.setBorder(BorderFactory.createEmptyBorder(6, 8, 4, 8));
+        add(header, BorderLayout.NORTH);
 
         history.setEditable(false);
         history.setFont(new Font("Segoe UI", Font.PLAIN, 13));
@@ -63,6 +64,10 @@ public class ChatFrame extends JFrame {
 
         loadHistory();
     }
+
+    public String getPeer() { return peer; }
+
+    public void requestFocusOnInput() { input.requestFocusInWindow(); }
 
     protected void onStartVoiceCall() {
         if (manager != null) manager.openVoiceWith(peer, true);
