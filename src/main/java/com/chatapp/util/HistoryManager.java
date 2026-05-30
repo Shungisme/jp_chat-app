@@ -11,15 +11,17 @@ import java.util.List;
 public class HistoryManager {
     private static final Path BASE = Path.of("data", "history");
 
+    // Scoped per local user so two client instances sharing a working directory
+    // do not append to the same file and double-log every message.
     private static Path fileFor(String me, String peer) {
         String pair = me.compareTo(peer) < 0 ? me + "__" + peer : peer + "__" + me;
-        return BASE.resolve(pair + ".log");
+        return BASE.resolve(me).resolve(pair + ".log");
     }
 
     public static synchronized void append(String me, String peer, Message msg) {
         try {
-            Files.createDirectories(BASE);
             Path f = fileFor(me, peer);
+            Files.createDirectories(f.getParent());
             String line = msg.getTimestamp() + "|" + msg.getSender() + "|"
                     + msg.getType() + "|" + safe(msg.getContent()) + "\n";
             Files.writeString(f, line, StandardCharsets.UTF_8,
