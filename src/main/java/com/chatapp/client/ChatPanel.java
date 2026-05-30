@@ -7,6 +7,8 @@ import com.chatapp.util.HistoryManager;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalTime;
@@ -17,12 +19,13 @@ public class ChatPanel extends JPanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private final JTextArea history = new JTextArea();
-    private final JTextField input = new JTextField();
+    private final JTextArea input = new JTextArea(3, 20);
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
     private final JButton voiceButton = new JButton("🎙");
     private final JButton videoButton = new JButton("📹");
     private final JButton historyButton = new JButton("Lịch sử");
+    private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
     protected final Client client;
     protected final String peer;
     protected final ChatWindowManager manager;
@@ -43,26 +46,72 @@ public class ChatPanel extends JPanel {
         history.setMargin(new Insets(6, 6, 6, 6));
         add(new JScrollPane(history), BorderLayout.CENTER);
 
-        JPanel bottom = new JPanel(new BorderLayout(4, 0));
+        input.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        input.setLineWrap(true);
+        input.setWrapStyleWord(true);
+        input.setMargin(new Insets(4, 6, 4, 6));
+        JScrollPane inputScroll = new JScrollPane(input);
+        inputScroll.setPreferredSize(new Dimension(0, 64));
+
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        toolbar.add(enterSendsBox);
+        JLabel hint = new JLabel("(tắt: Ctrl+ENTER để gửi)");
+        hint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        hint.setForeground(new Color(110, 110, 110));
+        toolbar.add(hint);
+
+        JPanel bottom = new JPanel(new BorderLayout(4, 4));
         bottom.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-        right.add(historyButton);
-        right.add(voiceButton);
-        right.add(videoButton);
-        right.add(fileButton);
-        right.add(sendButton);
-        bottom.add(input, BorderLayout.CENTER);
-        bottom.add(right, BorderLayout.EAST);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        buttons.add(historyButton);
+        buttons.add(voiceButton);
+        buttons.add(videoButton);
+        buttons.add(fileButton);
+        buttons.add(sendButton);
+
+        JPanel topRow = new JPanel(new BorderLayout(4, 0));
+        topRow.add(toolbar, BorderLayout.WEST);
+        topRow.add(buttons, BorderLayout.EAST);
+
+        bottom.add(topRow, BorderLayout.NORTH);
+        bottom.add(inputScroll, BorderLayout.CENTER);
         add(bottom, BorderLayout.SOUTH);
 
         sendButton.addActionListener(this::onSend);
-        input.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
         voiceButton.addActionListener(e -> onStartVoiceCall());
         videoButton.addActionListener(e -> onStartVideoCall());
         historyButton.addActionListener(e -> new HistoryFrame(client.getUsername(), peer).setVisible(true));
 
+        installKeyBindings();
         loadHistory();
+    }
+
+    // ENTER behaviour:
+    //  - "ENTER gửi" on: ENTER sends, Shift+ENTER inserts newline
+    //  - "ENTER gửi" off: ENTER inserts newline, Ctrl+ENTER sends
+    private void installKeyBindings() {
+        InputMap im = input.getInputMap(JComponent.WHEN_FOCUSED);
+        ActionMap am = input.getActionMap();
+
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "chat.enter");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.SHIFT_DOWN_MASK), "chat.newline");
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.CTRL_DOWN_MASK), "chat.send");
+
+        am.put("chat.enter", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                if (enterSendsBox.isSelected()) onSend(e);
+                else input.insert("\n", input.getCaretPosition());
+            }
+        });
+        am.put("chat.newline", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                input.insert("\n", input.getCaretPosition());
+            }
+        });
+        am.put("chat.send", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { onSend(e); }
+        });
     }
 
     public String getPeer() { return peer; }
