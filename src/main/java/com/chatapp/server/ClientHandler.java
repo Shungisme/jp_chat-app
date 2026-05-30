@@ -79,12 +79,27 @@ public class ClientHandler implements Runnable {
                 String[] parts = msg.getContent().split(",");
                 if (parts.length >= 1) {
                     Group g = server.groups().create(parts[0], msg.getSender());
-                    if (g != null) for (int i = 1; i < parts.length; i++) g.add(parts[i]);
+                    if (g != null) {
+                        for (int i = 1; i < parts.length; i++) g.add(parts[i]);
+                        for (String member : g.getMembers()) {
+                            ClientHandler h = server.get(member);
+                            if (h != null) {
+                                h.send(new Message(Message.Type.GROUP_INVITE,
+                                        "server", member, g.getName()));
+                            }
+                        }
+                    }
                 }
             }
             case GROUP_INVITE -> {
                 String[] parts = msg.getContent().split(":", 2);
-                if (parts.length == 2) server.groups().invite(parts[0], parts[1]);
+                if (parts.length == 2 && server.groups().invite(parts[0], parts[1])) {
+                    ClientHandler h = server.get(parts[1]);
+                    if (h != null) {
+                        h.send(new Message(Message.Type.GROUP_INVITE,
+                                "server", parts[1], parts[0]));
+                    }
+                }
             }
             case GROUP_CHAT -> server.broadcastGroup(msg);
             case VOICE_INVITE, VOICE_ACCEPT, VOICE_REJECT, VOICE, VOICE_END,

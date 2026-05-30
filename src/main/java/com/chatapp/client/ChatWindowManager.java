@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class ChatWindowManager {
     private final Client client;
@@ -19,6 +20,9 @@ public class ChatWindowManager {
     private final Map<String, VideoCallFrame> videoFrames = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVoiceCalls = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
+    private final Map<String, GroupFrame> groupFrames = new ConcurrentHashMap<>();
+    private final Set<String> joinedGroups = ConcurrentHashMap.newKeySet();
+    private Consumer<Set<String>> groupsListener;
     private MainFrame mainFrame;
     // Peers we just closed a call with — drop in-flight chunks instead of
     // auto-reopening the frame from the peer's still-streaming mic/cam.
@@ -37,6 +41,14 @@ public class ChatWindowManager {
 
     public void setMainFrame(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
+    }
+
+    public void setGroupsListener(Consumer<Set<String>> listener) {
+        this.groupsListener = listener;
+    }
+
+    public Set<String> joinedGroups() {
+        return Set.copyOf(joinedGroups);
     }
 
     public ChatPanel openWith(String peer) {
@@ -268,6 +280,40 @@ public class ChatWindowManager {
             recentlyClosedVideo.add(key);
             VideoCallFrame f = videoFrames.get(key);
             if (f != null) f.dispose();
+        });
+    }
+
+    // ---------------- group chat ----------------
+
+    public GroupFrame openGroup(String groupName) {
+        GroupFrame f = groupFrames.computeIfAbsent(groupName, name -> {
+            GroupFrame nf = new GroupFrame(client, name, groupFrames::remove);
+            nf.setVisible(true);
+            return nf;
+        });
+        f.toFront();
+        return f;
+    }
+
+    public void handleGroupInvite(Message msg) {
+        String groupName = msg.getContent();
+        if (groupName == null || groupName.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            if (joinedGroups.add(groupName) && groupsListener != null) {
+                groupsListener.accept(Set.copyOf(joinedGroups));
+            }
+            openGroup(groupName);
+        });
+    }
+
+    public void dispatchGroupChat(Message msg) {
+        String groupName = msg.getTarget();
+        if (groupName == null || groupName.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            if (joinedGroups.add(groupName) && groupsListener != null) {
+                groupsListener.accept(Set.copyOf(joinedGroups));
+            }
+            openGroup(groupName).receive(msg);
         });
     }
 
