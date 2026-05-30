@@ -48,11 +48,11 @@ public class ChatPanel extends JPanel {
         add(header, BorderLayout.NORTH);
 
         history.setEditable(false);
-        history.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        history.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
         history.setMargin(new Insets(6, 6, 6, 6));
         add(new JScrollPane(history), BorderLayout.CENTER);
 
-        input.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        input.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
         input.setLineWrap(true);
         input.setWrapStyleWord(true);
         input.setMargin(new Insets(4, 6, 4, 6));

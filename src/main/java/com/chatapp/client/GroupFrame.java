@@ -5,8 +5,11 @@ import com.chatapp.model.Message;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.function.Consumer;
 
 public class GroupFrame extends JFrame {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -16,19 +19,31 @@ public class GroupFrame extends JFrame {
     private final JButton sendButton = new JButton("Gửi");
     private final Client client;
     private final String groupName;
+    private final Consumer<String> closeCallback;
 
     public GroupFrame(Client client, String groupName) {
+        this(client, groupName, null);
+    }
+
+    public GroupFrame(Client client, String groupName, Consumer<String> closeCallback) {
         super("Nhóm: " + groupName);
         this.client = client;
         this.groupName = groupName;
+        this.closeCallback = closeCallback;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent e) {
+                if (closeCallback != null) closeCallback.accept(groupName);
+            }
+        });
         setSize(520, 400);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(4, 4));
 
         history.setEditable(false);
-        history.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        history.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
         add(new JScrollPane(history), BorderLayout.CENTER);
+        input.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13));
 
         JPanel bottom = new JPanel(new BorderLayout(4, 0));
         bottom.add(input, BorderLayout.CENTER);

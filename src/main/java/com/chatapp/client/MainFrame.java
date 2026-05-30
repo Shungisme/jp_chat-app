@@ -7,12 +7,18 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class MainFrame extends JFrame {
     protected final DefaultListModel<String> usersModel = new DefaultListModel<>();
     private final JList<String> usersList = new JList<>(usersModel);
+    private final DefaultListModel<String> groupsModel = new DefaultListModel<>();
+    private final JList<String> groupsList = new JList<>(groupsModel);
+    private final JButton createGroupButton = new JButton("Tạo nhóm");
     private final JTabbedPane chatTabs = new JTabbedPane();
     private final Map<String, Integer> badges = new HashMap<>();
     protected Client client;
@@ -30,10 +36,11 @@ public class MainFrame extends JFrame {
         this.server = server;
         this.windows = new ChatWindowManager(client);
         this.windows.setBadgeListener(this::setBadge);
+        this.windows.setGroupsListener(this::updateGroups);
         this.windows.setMainFrame(this);
 
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(900, 560);
+        setSize(960, 600);
         setLocationRelativeTo(null);
 
         URL iconUrl = getClass().getResource("/icons/app.png");
@@ -52,29 +59,43 @@ public class MainFrame extends JFrame {
             header.add(info);
         }
 
-        // Left: online users
-        JPanel left = new JPanel(new BorderLayout(4, 4));
+        // Left top — online users
+        JPanel usersPanel = new JPanel(new BorderLayout(4, 4));
         JLabel usersTitle = new JLabel("Đang online (double-click):");
         usersTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
         usersTitle.setBorder(BorderFactory.createEmptyBorder(6, 6, 4, 6));
-        left.add(usersTitle, BorderLayout.NORTH);
+        usersPanel.add(usersTitle, BorderLayout.NORTH);
         usersList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        left.add(new JScrollPane(usersList), BorderLayout.CENTER);
-        left.setPreferredSize(new Dimension(220, 0));
+        usersPanel.add(new JScrollPane(usersList), BorderLayout.CENTER);
 
-        // Right: chat tabs
+        // Left bottom — joined groups + create-group button
+        JPanel groupsPanel = new JPanel(new BorderLayout(4, 4));
+        JLabel groupsTitle = new JLabel("Nhóm của bạn (double-click để mở):");
+        groupsTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        groupsTitle.setBorder(BorderFactory.createEmptyBorder(6, 6, 4, 6));
+        groupsPanel.add(groupsTitle, BorderLayout.NORTH);
+        groupsList.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        groupsPanel.add(new JScrollPane(groupsList), BorderLayout.CENTER);
+        groupsPanel.add(createGroupButton, BorderLayout.SOUTH);
+
+        JSplitPane leftSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, usersPanel, groupsPanel);
+        leftSplit.setResizeWeight(0.6);
+        leftSplit.setOneTouchExpandable(true);
+        leftSplit.setPreferredSize(new Dimension(240, 0));
+
+        // Right — chat tabs
         chatTabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         JPanel empty = new JPanel(new GridBagLayout());
         empty.add(new JLabel("Chọn người dùng bên trái để bắt đầu chat."));
         chatTabs.addTab("Bắt đầu", empty);
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, chatTabs);
-        split.setDividerLocation(220);
-        split.setOneTouchExpandable(true);
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftSplit, chatTabs);
+        mainSplit.setDividerLocation(240);
+        mainSplit.setOneTouchExpandable(true);
 
         setLayout(new BorderLayout());
         add(header, BorderLayout.NORTH);
-        add(split, BorderLayout.CENTER);
+        add(mainSplit, BorderLayout.CENTER);
 
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
@@ -94,6 +115,32 @@ public class MainFrame extends JFrame {
                     if (peer != null) windows.openWith(peer);
                 }
             }
+        });
+
+        groupsList.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String gn = groupsList.getSelectedValue();
+                    if (gn != null) windows.openGroup(gn);
+                }
+            }
+        });
+
+        createGroupButton.addActionListener(e -> onCreateGroup());
+    }
+
+    private void onCreateGroup() {
+        List<String> online = new ArrayList<>();
+        for (int i = 0; i < usersModel.size(); i++) online.add(usersModel.get(i));
+        new CreateGroupDialog(this, client, online).setVisible(true);
+    }
+
+    private void updateGroups(Set<String> groups) {
+        SwingUtilities.invokeLater(() -> {
+            groupsModel.clear();
+            List<String> sorted = new ArrayList<>(groups);
+            sorted.sort(String::compareTo);
+            for (String g : sorted) groupsModel.addElement(g);
         });
     }
 
@@ -163,6 +210,8 @@ public class MainFrame extends JFrame {
                 }
             });
             case CHAT -> windows.dispatch(msg);
+            case GROUP_CHAT -> windows.dispatchGroupChat(msg);
+            case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case VOICE_INVITE -> windows.handleVoiceInvite(msg);
             case VOICE_ACCEPT -> windows.handleVoiceAccept(msg);
             case VOICE_REJECT -> windows.handleVoiceReject(msg);
