@@ -11,9 +11,10 @@ import java.util.function.BiConsumer;
 
 public class ChatWindowManager {
     private final Client client;
-    private final Map<String, ChatFrame> windows = new ConcurrentHashMap<>();
+    private final Map<String, ChatPanel> panels = new ConcurrentHashMap<>();
     private final Map<String, VoiceCallFrame> voiceFrames = new ConcurrentHashMap<>();
     private final Map<String, VideoCallFrame> videoFrames = new ConcurrentHashMap<>();
+    private MainFrame mainFrame;
     // Peers we just closed a call with — drop in-flight chunks instead of
     // auto-reopening the frame from the peer's still-streaming mic/cam.
     private final Set<String> recentlyClosedVoice = ConcurrentHashMap.newKeySet();
@@ -29,19 +30,24 @@ public class ChatWindowManager {
         this.badgeListener = listener;
     }
 
-    public ChatFrame openWith(String peer) {
-        ChatFrame f = windows.computeIfAbsent(peer, p -> {
-            ChatFrame nf = new ChatFrame(client, p, this);
-            nf.setVisible(true);
-            return nf;
+    public void setMainFrame(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
+    }
+
+    public ChatPanel openWith(String peer) {
+        ChatPanel p = panels.computeIfAbsent(peer, pe -> {
+            ChatPanel panel = new ChatPanel(client, pe, this);
+            if (mainFrame != null) mainFrame.openChatTab(pe, panel);
+            return panel;
         });
+        if (mainFrame != null) mainFrame.selectChatTab(peer);
         clearUnread(peer);
-        return f;
+        return p;
     }
 
     public void close(String peer) {
-        ChatFrame f = windows.remove(peer);
-        if (f != null) f.dispose();
+        ChatPanel p = panels.remove(peer);
+        if (p != null && mainFrame != null) mainFrame.closeChatTab(peer);
     }
 
     public VoiceCallFrame openVoiceWith(String peer, boolean callerSide) {
@@ -76,12 +82,12 @@ public class ChatWindowManager {
         String key = msg.getSender().equals(client.getUsername())
                 ? msg.getTarget() : msg.getSender();
         SwingUtilities.invokeLater(() -> {
-            ChatFrame f = windows.get(key);
-            if (f == null) {
+            ChatPanel p = panels.get(key);
+            if (p == null) {
                 int n = unread.computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
                 if (badgeListener != null) badgeListener.accept(key, n);
             } else {
-                f.receive(msg);
+                p.receive(msg);
             }
         });
     }
