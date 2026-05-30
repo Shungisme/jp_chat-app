@@ -163,8 +163,14 @@ public class MainFrame extends JFrame {
                 }
             });
             case CHAT -> windows.dispatch(msg);
+            case VOICE_INVITE -> windows.handleVoiceInvite(msg);
+            case VOICE_ACCEPT -> windows.handleVoiceAccept(msg);
+            case VOICE_REJECT -> windows.handleVoiceReject(msg);
             case VOICE -> windows.dispatchVoice(msg);
             case VOICE_END -> windows.handleVoiceEnd(msg);
+            case VIDEO_INVITE -> windows.handleVideoInvite(msg);
+            case VIDEO_ACCEPT -> windows.handleVideoAccept(msg);
+            case VIDEO_REJECT -> windows.handleVideoReject(msg);
             case VIDEO -> windows.dispatchVideo(msg);
             case VIDEO_END -> windows.handleVideoEnd(msg);
             default -> {}
