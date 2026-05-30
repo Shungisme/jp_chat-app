@@ -25,7 +25,13 @@ public class ChatPanel extends JPanel {
     private final JButton voiceButton = new JButton("🎙");
     private final JButton videoButton = new JButton("📹");
     private final JButton historyButton = new JButton("Lịch sử");
+    private final JButton emojiButton = new JButton("😀");
     private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
+
+    private static final String[] EMOJIS = {
+            "😀", "😂", "😍", "😎", "😢", "👍",
+            "🙏", "❤", "🔥", "🎉", "😡", "😴"
+    };
     protected final Client client;
     protected final String peer;
     protected final ChatWindowManager manager;
@@ -54,6 +60,9 @@ public class ChatPanel extends JPanel {
         inputScroll.setPreferredSize(new Dimension(0, 64));
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        emojiButton.setMargin(new Insets(0, 6, 0, 6));
+        emojiButton.setToolTipText("Chèn emoji");
+        toolbar.add(emojiButton);
         toolbar.add(enterSendsBox);
         JLabel hint = new JLabel("(tắt: Ctrl+ENTER để gửi)");
         hint.setFont(new Font("Segoe UI", Font.PLAIN, 11));
@@ -82,6 +91,7 @@ public class ChatPanel extends JPanel {
         voiceButton.addActionListener(e -> onStartVoiceCall());
         videoButton.addActionListener(e -> onStartVideoCall());
         historyButton.addActionListener(e -> new HistoryFrame(client.getUsername(), peer).setVisible(true));
+        emojiButton.addActionListener(e -> showEmojiPopup());
 
         installKeyBindings();
         loadHistory();
@@ -124,6 +134,27 @@ public class ChatPanel extends JPanel {
 
     protected void onStartVideoCall() {
         if (manager != null) manager.openVideoWith(peer, true);
+    }
+
+    private void showEmojiPopup() {
+        JPopupMenu popup = new JPopupMenu();
+        JPanel grid = new JPanel(new GridLayout(2, 6, 2, 2));
+        grid.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        Font emojiFont = new Font("Segoe UI Emoji", Font.PLAIN, 18);
+        for (String emoji : EMOJIS) {
+            JButton b = new JButton(emoji);
+            b.setFont(emojiFont);
+            b.setFocusable(false);
+            b.setMargin(new Insets(2, 6, 2, 6));
+            b.addActionListener(ev -> {
+                input.insert(emoji, input.getCaretPosition());
+                popup.setVisible(false);
+                input.requestFocusInWindow();
+            });
+            grid.add(b);
+        }
+        popup.add(grid);
+        popup.show(emojiButton, 0, -popup.getPreferredSize().height);
     }
 
     private void loadHistory() {
