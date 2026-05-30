@@ -60,9 +60,9 @@ public class VoiceCallFrame extends JFrame {
         try {
             voice.startPlayback();
             statusLabel.setText(callerSide
-                    ? "Đang gọi " + peer + "..."
-                    : "Cuộc gọi đến từ " + peer);
-            if (callerSide) toggleMic();
+                    ? "Đã kết nối với " + peer
+                    : "Đã chấp nhận cuộc gọi từ " + peer);
+            toggleMic();
         } catch (LineUnavailableException ex) {
             JOptionPane.showMessageDialog(this, "Không thể mở loa: " + ex.getMessage(),
                     "Lỗi", JOptionPane.ERROR_MESSAGE);

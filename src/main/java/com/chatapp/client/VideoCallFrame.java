@@ -82,9 +82,9 @@ public class VideoCallFrame extends JFrame {
             camButton.setToolTipText("Build với 'mvn package' để dùng webcam.");
         } else {
             statusLabel.setText(callerSide
-                    ? "Đang gọi video " + peer + "..."
-                    : "Cuộc gọi video đến từ " + peer);
-            if (callerSide) toggleCam();
+                    ? "Đã kết nối với " + peer
+                    : "Đã chấp nhận cuộc gọi từ " + peer);
+            toggleCam();
         }
     }
 

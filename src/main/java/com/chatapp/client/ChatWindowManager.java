@@ -3,6 +3,9 @@ package com.chatapp.client;
 import com.chatapp.model.Message;
 
 import javax.swing.*;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,6 +17,8 @@ public class ChatWindowManager {
     private final Map<String, ChatPanel> panels = new ConcurrentHashMap<>();
     private final Map<String, VoiceCallFrame> voiceFrames = new ConcurrentHashMap<>();
     private final Map<String, VideoCallFrame> videoFrames = new ConcurrentHashMap<>();
+    private final Map<String, JDialog> outgoingVoiceCalls = new ConcurrentHashMap<>();
+    private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
     private MainFrame mainFrame;
     // Peers we just closed a call with — drop in-flight chunks instead of
     // auto-reopening the frame from the peer's still-streaming mic/cam.
@@ -49,6 +54,143 @@ public class ChatWindowManager {
         ChatPanel p = panels.remove(peer);
         if (p != null && mainFrame != null) mainFrame.closeChatTab(peer);
     }
+
+    // ---------------- voice / video call handshake ----------------
+
+    public void initiateVoiceCall(String peer) {
+        initiateCall(peer, Message.Type.VOICE_INVITE, Message.Type.VOICE_REJECT,
+                "thoại", outgoingVoiceCalls);
+    }
+
+    public void initiateVideoCall(String peer) {
+        initiateCall(peer, Message.Type.VIDEO_INVITE, Message.Type.VIDEO_REJECT,
+                "video", outgoingVideoCalls);
+    }
+
+    private void initiateCall(String peer, Message.Type inviteType, Message.Type rejectType,
+                              String label, Map<String, JDialog> bag) {
+        if (bag.containsKey(peer) || voiceFrames.containsKey(peer) || videoFrames.containsKey(peer)) return;
+        try {
+            client.send(new Message(inviteType, client.getUsername(), peer, ""));
+        } catch (Exception ex) {
+            if (mainFrame != null) {
+                JOptionPane.showMessageDialog(mainFrame,
+                        "Không thể gửi lời mời: " + ex.getMessage(),
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+            return;
+        }
+        JDialog d = buildCallingDialog(peer, label, () -> {
+            try { client.send(new Message(rejectType, client.getUsername(), peer, "")); }
+            catch (Exception ignored) {}
+            JDialog dd = bag.remove(peer);
+            if (dd != null) dd.dispose();
+        });
+        bag.put(peer, d);
+        d.setVisible(true);
+    }
+
+    private JDialog buildCallingDialog(String peer, String label, Runnable onCancel) {
+        JDialog d = new JDialog(mainFrame, "Đang gọi " + label, false);
+        d.setSize(320, 150);
+        d.setLocationRelativeTo(mainFrame);
+        d.setLayout(new BorderLayout(8, 8));
+        JLabel msg = new JLabel("<html><div style='text-align:center;'>"
+                + "Đang gọi <b>" + peer + "</b>...<br>Chờ phản hồi.</div></html>",
+                SwingConstants.CENTER);
+        msg.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        msg.setBorder(BorderFactory.createEmptyBorder(16, 16, 8, 16));
+        d.add(msg, BorderLayout.CENTER);
+        JButton cancel = new JButton("Huỷ");
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttons.add(cancel);
+        d.add(buttons, BorderLayout.SOUTH);
+        cancel.addActionListener(e -> onCancel.run());
+        d.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent e) { onCancel.run(); }
+        });
+        return d;
+    }
+
+    public void handleVoiceInvite(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> new IncomingCallDialog(mainFrame, from, "thoại",
+                () -> {
+                    try { client.send(new Message(Message.Type.VOICE_ACCEPT, client.getUsername(), from, "")); }
+                    catch (Exception ignored) {}
+                    recentlyClosedVoice.remove(from);
+                    openVoiceWith(from, false);
+                },
+                () -> {
+                    try { client.send(new Message(Message.Type.VOICE_REJECT, client.getUsername(), from, "")); }
+                    catch (Exception ignored) {}
+                }
+        ).setVisible(true));
+    }
+
+    public void handleVideoInvite(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> new IncomingCallDialog(mainFrame, from, "video",
+                () -> {
+                    try { client.send(new Message(Message.Type.VIDEO_ACCEPT, client.getUsername(), from, "")); }
+                    catch (Exception ignored) {}
+                    recentlyClosedVideo.remove(from);
+                    openVideoWith(from, false);
+                },
+                () -> {
+                    try { client.send(new Message(Message.Type.VIDEO_REJECT, client.getUsername(), from, "")); }
+                    catch (Exception ignored) {}
+                }
+        ).setVisible(true));
+    }
+
+    public void handleVoiceAccept(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            JDialog d = outgoingVoiceCalls.remove(from);
+            if (d != null) d.dispose();
+            recentlyClosedVoice.remove(from);
+            openVoiceWith(from, true);
+        });
+    }
+
+    public void handleVideoAccept(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            JDialog d = outgoingVideoCalls.remove(from);
+            if (d != null) d.dispose();
+            recentlyClosedVideo.remove(from);
+            openVideoWith(from, true);
+        });
+    }
+
+    public void handleVoiceReject(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            JDialog d = outgoingVoiceCalls.remove(from);
+            if (d != null) d.dispose();
+            if (mainFrame != null) {
+                JOptionPane.showMessageDialog(mainFrame,
+                        from + " đã từ chối cuộc gọi.",
+                        "Cuộc gọi bị từ chối", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+    }
+
+    public void handleVideoReject(Message msg) {
+        String from = msg.getSender();
+        SwingUtilities.invokeLater(() -> {
+            JDialog d = outgoingVideoCalls.remove(from);
+            if (d != null) d.dispose();
+            if (mainFrame != null) {
+                JOptionPane.showMessageDialog(mainFrame,
+                        from + " đã từ chối cuộc gọi video.",
+                        "Cuộc gọi bị từ chối", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+    }
+
+    // ---------------- call frame plumbing ----------------
 
     public VoiceCallFrame openVoiceWith(String peer, boolean callerSide) {
         recentlyClosedVoice.remove(peer);
@@ -92,14 +234,13 @@ public class ChatWindowManager {
         });
     }
 
+    // No auto-open — chunks only flow once both sides have accepted.
     public void dispatchVoice(Message msg) {
         String key = msg.getSender().equals(client.getUsername())
                 ? msg.getTarget() : msg.getSender();
         SwingUtilities.invokeLater(() -> {
             VoiceCallFrame f = voiceFrames.get(key);
-            if (f != null) { f.receive(msg); return; }
-            if (recentlyClosedVoice.contains(key)) return;
-            openVoiceWith(key, false).receive(msg);
+            if (f != null) f.receive(msg);
         });
     }
 
@@ -108,9 +249,7 @@ public class ChatWindowManager {
                 ? msg.getTarget() : msg.getSender();
         SwingUtilities.invokeLater(() -> {
             VideoCallFrame f = videoFrames.get(key);
-            if (f != null) { f.receive(msg); return; }
-            if (recentlyClosedVideo.contains(key)) return;
-            openVideoWith(key, false).receive(msg);
+            if (f != null) f.receive(msg);
         });
     }
 

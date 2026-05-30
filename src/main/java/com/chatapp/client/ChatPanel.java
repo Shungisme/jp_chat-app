@@ -129,11 +129,11 @@ public class ChatPanel extends JPanel {
     public void requestFocusOnInput() { input.requestFocusInWindow(); }
 
     protected void onStartVoiceCall() {
-        if (manager != null) manager.openVoiceWith(peer, true);
+        if (manager != null) manager.initiateVoiceCall(peer);
     }
 
     protected void onStartVideoCall() {
-        if (manager != null) manager.openVideoWith(peer, true);
+        if (manager != null) manager.initiateVideoCall(peer);
     }
 
     private void showEmojiPopup() {

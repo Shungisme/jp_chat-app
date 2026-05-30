@@ -9,7 +9,8 @@ public class Message implements Serializable {
     public enum Type {
         LOGIN, REGISTER, CHAT, GROUP_CHAT, FILE, USER_LIST,
         GROUP_CREATE, GROUP_INVITE, LOGOUT, ACK, ERROR,
-        VOICE, VOICE_END, VIDEO, VIDEO_END
+        VOICE_INVITE, VOICE_ACCEPT, VOICE_REJECT, VOICE, VOICE_END,
+        VIDEO_INVITE, VIDEO_ACCEPT, VIDEO_REJECT, VIDEO, VIDEO_END
     }
 
     private Type type;
