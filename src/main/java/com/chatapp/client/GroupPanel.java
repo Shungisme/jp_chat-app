@@ -1,6 +1,7 @@
 package com.chatapp.client;
 
 import com.chatapp.model.Message;
+import com.chatapp.util.HistoryManager;
 
 import javax.swing.*;
 import javax.swing.text.*;
@@ -8,8 +9,11 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+import java.time.Instant;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class GroupPanel extends JPanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
@@ -80,6 +84,23 @@ public class GroupPanel extends JPanel {
         emojiButton.addActionListener(e -> showEmojiPopup());
 
         installKeyBindings();
+        loadHistory();
+    }
+
+    private void loadHistory() {
+        List<String> lines = HistoryManager.loadGroup(client.getUsername(), groupName);
+        ZoneId zone = ZoneId.systemDefault();
+        for (String line : lines) {
+            String[] parts = line.split("\\|", 4);
+            if (parts.length < 4) continue;
+            long ts;
+            try { ts = Long.parseLong(parts[0]); } catch (NumberFormatException ex) { continue; }
+            String sender = parts[1];
+            String content = parts[3].replace("\\n", "\n");
+            String who = sender.equals(client.getUsername()) ? "Tôi" : sender;
+            String time = Instant.ofEpochMilli(ts).atZone(zone).format(TIME);
+            appendStyled("(cũ) [" + time + "] " + who + ": " + content + "\n");
+        }
     }
 
     public String getGroupName() { return groupName; }
@@ -171,8 +192,10 @@ public class GroupPanel extends JPanel {
     private void onSend(ActionEvent e) {
         String text = input.getText().trim();
         if (text.isEmpty()) return;
+        Message m = new Message(Message.Type.GROUP_CHAT, client.getUsername(), groupName, text);
         try {
-            client.send(new Message(Message.Type.GROUP_CHAT, client.getUsername(), groupName, text));
+            client.send(m);
+            HistoryManager.appendGroup(client.getUsername(), groupName, m);
             appendLine("Tôi", text);
             input.setText("");
         } catch (Exception ex) {
@@ -181,6 +204,9 @@ public class GroupPanel extends JPanel {
     }
 
     public void receive(Message m) {
-        SwingUtilities.invokeLater(() -> appendLine(m.getSender(), m.getContent()));
+        SwingUtilities.invokeLater(() -> {
+            HistoryManager.appendGroup(client.getUsername(), groupName, m);
+            appendLine(m.getSender(), m.getContent());
+        });
     }
 }
