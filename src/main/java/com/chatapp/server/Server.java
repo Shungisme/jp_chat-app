@@ -93,10 +93,11 @@ public class Server {
         notifyClientsChanged();
     }
 
-    public void unregister(String username) {
-        clients.remove(username);
-        log("[Server] " + username + " disconnected (" + clients.size() + " online)");
-        notifyClientsChanged();
+    public void unregister(String username, ClientHandler handler) {
+        if (clients.remove(username, handler)) {
+            log("[Server] " + username + " disconnected (" + clients.size() + " online)");
+            notifyClientsChanged();
+        }
     }
 
     public ClientHandler get(String username) {

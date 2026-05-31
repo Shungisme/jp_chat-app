@@ -351,4 +351,20 @@ public class ChatWindowManager {
         unread.remove(peer);
         if (badgeListener != null) badgeListener.accept(peer, 0);
     }
+
+    // Disposes any standalone windows the manager owns. ChatPanels and
+    // GroupPanels live inside the MainFrame's tab pane, so they go away
+    // when MainFrame.dispose() runs.
+    public void closeAll() {
+        SwingUtilities.invokeLater(() -> {
+            for (VoiceCallFrame f : voiceFrames.values()) f.dispose();
+            for (VideoCallFrame f : videoFrames.values()) f.dispose();
+            for (JDialog d : outgoingVoiceCalls.values()) d.dispose();
+            for (JDialog d : outgoingVideoCalls.values()) d.dispose();
+            voiceFrames.clear();
+            videoFrames.clear();
+            outgoingVoiceCalls.clear();
+            outgoingVideoCalls.clear();
+        });
+    }
 }
