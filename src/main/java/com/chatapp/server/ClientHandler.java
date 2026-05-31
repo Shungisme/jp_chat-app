@@ -83,8 +83,8 @@ public class ClientHandler implements Runnable {
                     StringBuilder myGroups = new StringBuilder();
                     for (Group g : server.groups().all().values()) {
                         if (g.contains(username)) {
-                            if (myGroups.length() > 0) myGroups.append(",");
-                            myGroups.append(g.getName());
+                            if (myGroups.length() > 0) myGroups.append(";");
+                            myGroups.append(g.getId()).append("|").append(g.getName());
                         }
                     }
                     if (myGroups.length() > 0) {
@@ -106,14 +106,16 @@ public class ClientHandler implements Runnable {
             case GROUP_CREATE -> {
                 String[] parts = msg.getContent().split(",");
                 if (parts.length >= 1) {
-                    Group g = server.groups().create(parts[0], msg.getSender());
+                    java.util.List<String> extras = new java.util.ArrayList<>();
+                    for (int i = 1; i < parts.length; i++) extras.add(parts[i]);
+                    Group g = server.groups().create(parts[0], msg.getSender(), extras);
                     if (g != null) {
-                        for (int i = 1; i < parts.length; i++) g.add(parts[i]);
+                        String payload = g.getId() + "|" + g.getName();
                         for (String member : g.getMembers()) {
                             ClientHandler h = server.get(member);
                             if (h != null) {
                                 h.send(new Message(Message.Type.GROUP_INVITE,
-                                        "server", member, g.getName()));
+                                        "server", member, payload));
                             }
                         }
                     }
@@ -122,10 +124,11 @@ public class ClientHandler implements Runnable {
             case GROUP_INVITE -> {
                 String[] parts = msg.getContent().split(":", 2);
                 if (parts.length == 2 && server.groups().invite(parts[0], parts[1])) {
+                    Group g = server.groups().get(parts[0]);
                     ClientHandler h = server.get(parts[1]);
-                    if (h != null) {
+                    if (g != null && h != null) {
                         h.send(new Message(Message.Type.GROUP_INVITE,
-                                "server", parts[1], parts[0]));
+                                "server", parts[1], g.getId() + "|" + g.getName()));
                     }
                 }
             }

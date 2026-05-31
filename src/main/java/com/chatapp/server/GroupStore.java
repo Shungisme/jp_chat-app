@@ -6,12 +6,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class GroupStore {
     private static final Path FILE = Path.of("data", "groups.txt");
-    private final Map<String, Group> groups = new ConcurrentHashMap<>();
+    private final Map<String, Group> groupsById = new ConcurrentHashMap<>();
 
     public GroupStore() {
         load();
@@ -20,24 +22,36 @@ public class GroupStore {
     private synchronized void load() {
         try {
             if (!Files.exists(FILE)) return;
+            boolean migrated = false;
             for (String line : Files.readAllLines(FILE, StandardCharsets.UTF_8)) {
                 if (line == null || line.isBlank()) continue;
-                String[] parts = line.split("\\|", 3);
-                if (parts.length < 2) continue;
-                String name = parts[0].trim();
-                String owner = parts[1].trim();
-                if (name.isEmpty() || owner.isEmpty()) continue;
-                Group g = new Group(name, owner);
-                if (parts.length == 3 && !parts[2].isBlank()) {
-                    for (String m : parts[2].split(",")) {
-                        String mt = m.trim();
-                        if (!mt.isEmpty()) g.add(mt);
-                    }
+                String[] parts = line.split("\\|", 4);
+                if (parts.length == 3) {
+                    // Legacy format: name|owner|members → assign a new id
+                    String id = UUID.randomUUID().toString();
+                    Group g = new Group(id, parts[0].trim(), parts[1].trim());
+                    addMembers(g, parts[2]);
+                    groupsById.put(id, g);
+                    migrated = true;
+                } else if (parts.length == 4) {
+                    String id = parts[0].trim();
+                    if (id.isEmpty()) continue;
+                    Group g = new Group(id, parts[1].trim(), parts[2].trim());
+                    addMembers(g, parts[3]);
+                    groupsById.put(id, g);
                 }
-                groups.put(name, g);
             }
+            if (migrated) save();
         } catch (IOException e) {
             System.err.println("[GroupStore] load failed: " + e.getMessage());
+        }
+    }
+
+    private void addMembers(Group g, String raw) {
+        if (raw == null || raw.isBlank()) return;
+        for (String m : raw.split(",")) {
+            String mt = m.trim();
+            if (!mt.isEmpty()) g.add(mt);
         }
     }
 
@@ -45,10 +59,12 @@ public class GroupStore {
         try {
             Files.createDirectories(FILE.getParent());
             StringBuilder sb = new StringBuilder();
-            for (Group g : groups.values()) {
-                sb.append(g.getName()).append("|").append(g.getOwner()).append("|");
-                sb.append(String.join(",", g.getMembers()));
-                sb.append("\n");
+            for (Group g : groupsById.values()) {
+                sb.append(g.getId()).append("|")
+                  .append(g.getName()).append("|")
+                  .append(g.getOwner()).append("|")
+                  .append(String.join(",", g.getMembers()))
+                  .append("\n");
             }
             Files.writeString(FILE, sb.toString(), StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -56,18 +72,27 @@ public class GroupStore {
         }
     }
 
-    public Group create(String name, String owner) {
+    // Creates a brand-new group with a freshly minted UUID. Multiple groups
+    // can share the same display name.
+    public Group create(String name, String owner, Collection<String> extraMembers) {
         if (name == null || name.isBlank() || owner == null) return null;
-        Group g = groups.computeIfAbsent(name, n -> new Group(n, owner));
+        String id = UUID.randomUUID().toString();
+        Group g = new Group(id, name, owner);
+        if (extraMembers != null) {
+            for (String m : extraMembers) {
+                if (m != null && !m.isBlank() && !m.equals(owner)) g.add(m);
+            }
+        }
+        groupsById.put(id, g);
         save();
         return g;
     }
 
-    public Group get(String name) { return name == null ? null : groups.get(name); }
+    public Group get(String id) { return id == null ? null : groupsById.get(id); }
 
-    public boolean invite(String groupName, String username) {
-        if (groupName == null || username == null || username.isBlank()) return false;
-        Group g = groups.get(groupName);
+    public boolean invite(String groupId, String username) {
+        if (groupId == null || username == null || username.isBlank()) return false;
+        Group g = groupsById.get(groupId);
         if (g != null && g.add(username)) {
             save();
             return true;
@@ -75,21 +100,21 @@ public class GroupStore {
         return false;
     }
 
-    public boolean remove(String groupName, String username) {
-        Group g = get(groupName);
+    public boolean remove(String groupId, String username) {
+        Group g = get(groupId);
         if (g == null) return false;
         boolean removed = g.remove(username);
         if (removed) {
-            if (g.getMembers().isEmpty()) groups.remove(groupName);
+            if (g.getMembers().isEmpty()) groupsById.remove(groupId);
             save();
         }
         return removed;
     }
 
-    public boolean isEmpty(String groupName) {
-        Group g = get(groupName);
+    public boolean isEmpty(String groupId) {
+        Group g = get(groupId);
         return g == null || g.getMembers().isEmpty();
     }
 
-    public Map<String, Group> all() { return groups; }
+    public Map<String, Group> all() { return groupsById; }
 }

@@ -74,14 +74,16 @@ public class HistoryManager {
     }
 
     // ---------------- group history ----------------
+    // Keyed by groupId (UUID) so two groups with the same display name keep
+    // separate logs.
 
-    private static Path groupFileFor(String me, String groupName) {
-        return BASE.resolve(me).resolve("group__" + groupName + ".log");
+    private static Path groupFileFor(String me, String groupId) {
+        return BASE.resolve(me).resolve("group__" + groupId + ".log");
     }
 
-    public static synchronized void appendGroup(String me, String groupName, Message msg) {
+    public static synchronized void appendGroup(String me, String groupId, Message msg) {
         try {
-            Path f = groupFileFor(me, groupName);
+            Path f = groupFileFor(me, groupId);
             Files.createDirectories(f.getParent());
             String line = msg.getTimestamp() + "|" + msg.getSender() + "|"
                     + msg.getType() + "|" + safe(msg.getContent()) + "\n";
@@ -92,9 +94,9 @@ public class HistoryManager {
         }
     }
 
-    public static List<String> loadGroup(String me, String groupName) {
+    public static List<String> loadGroup(String me, String groupId) {
         try {
-            Path f = groupFileFor(me, groupName);
+            Path f = groupFileFor(me, groupId);
             if (!Files.exists(f)) return List.of();
             List<String> raw = Files.readAllLines(f, StandardCharsets.UTF_8);
             List<String> valid = new ArrayList<>();

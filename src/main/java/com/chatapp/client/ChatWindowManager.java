@@ -21,8 +21,8 @@ public class ChatWindowManager {
     private final Map<String, JDialog> outgoingVoiceCalls = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
     private final Map<String, GroupPanel> groupPanels = new ConcurrentHashMap<>();
-    private final Set<String> joinedGroups = ConcurrentHashMap.newKeySet();
-    private Consumer<Set<String>> groupsListener;
+    private final Map<String, String> joinedGroups = new ConcurrentHashMap<>();
+    private Consumer<Map<String, String>> groupsListener;
     private MainFrame mainFrame;
     // Peers we just closed a call with — drop in-flight chunks instead of
     // auto-reopening the frame from the peer's still-streaming mic/cam.
@@ -43,12 +43,12 @@ public class ChatWindowManager {
         this.mainFrame = mainFrame;
     }
 
-    public void setGroupsListener(Consumer<Set<String>> listener) {
+    public void setGroupsListener(Consumer<Map<String, String>> listener) {
         this.groupsListener = listener;
     }
 
-    public Set<String> joinedGroups() {
-        return Set.copyOf(joinedGroups);
+    public Map<String, String> joinedGroups() {
+        return Map.copyOf(joinedGroups);
     }
 
     public ChatPanel openWith(String peer) {
@@ -293,57 +293,69 @@ public class ChatWindowManager {
 
     // ---------------- group chat ----------------
 
-    public GroupPanel openGroup(String groupName) {
-        GroupPanel p = groupPanels.computeIfAbsent(groupName, name -> {
-            GroupPanel np = new GroupPanel(client, name);
-            if (mainFrame != null) mainFrame.openGroupTab(name, np);
+    public GroupPanel openGroup(String groupId, String groupName) {
+        GroupPanel p = groupPanels.computeIfAbsent(groupId, id -> {
+            GroupPanel np = new GroupPanel(client, id, groupName);
+            if (mainFrame != null) mainFrame.openGroupTab(id, groupName, np);
             return np;
         });
-        if (mainFrame != null) mainFrame.selectGroupTab(groupName);
+        if (mainFrame != null) mainFrame.selectGroupTab(groupId);
         return p;
     }
 
-    public void closeGroup(String groupName) {
-        GroupPanel p = groupPanels.remove(groupName);
-        if (p != null && mainFrame != null) mainFrame.closeGroupTab(groupName);
+    public void closeGroup(String groupId) {
+        GroupPanel p = groupPanels.remove(groupId);
+        if (p != null && mainFrame != null) mainFrame.closeGroupTab(groupId);
+    }
+
+    // Parses payload "id|name" used by GROUP_INVITE.
+    private static String[] splitGroupPayload(String payload) {
+        if (payload == null) return null;
+        String[] parts = payload.split("\\|", 2);
+        if (parts.length != 2) return null;
+        String id = parts[0].trim();
+        String name = parts[1].trim();
+        if (id.isEmpty() || name.isEmpty()) return null;
+        return new String[] { id, name };
     }
 
     public void handleGroupInvite(Message msg) {
-        String groupName = msg.getContent();
-        if (groupName == null || groupName.isBlank()) return;
+        String[] g = splitGroupPayload(msg.getContent());
+        if (g == null) return;
         SwingUtilities.invokeLater(() -> {
-            if (joinedGroups.add(groupName) && groupsListener != null) {
-                groupsListener.accept(Set.copyOf(joinedGroups));
+            boolean fresh = joinedGroups.put(g[0], g[1]) == null;
+            if (fresh && groupsListener != null) {
+                groupsListener.accept(Map.copyOf(joinedGroups));
             }
-            openGroup(groupName);
+            openGroup(g[0], g[1]);
         });
     }
 
     // GROUP_LIST is sent at login to restore membership. Populate the list
     // but do NOT auto-open tabs — the user picks which groups to re-open.
+    // Content format: "id1|name1;id2|name2;..."
     public void handleGroupList(Message msg) {
         String content = msg.getContent();
         if (content == null || content.isBlank()) return;
         SwingUtilities.invokeLater(() -> {
             boolean changed = false;
-            for (String name : content.split(",")) {
-                String n = name.trim();
-                if (!n.isEmpty() && joinedGroups.add(n)) changed = true;
+            for (String entry : content.split(";")) {
+                String[] g = splitGroupPayload(entry);
+                if (g != null && joinedGroups.put(g[0], g[1]) == null) changed = true;
             }
             if (changed && groupsListener != null) {
-                groupsListener.accept(Set.copyOf(joinedGroups));
+                groupsListener.accept(Map.copyOf(joinedGroups));
             }
         });
     }
 
     public void dispatchGroupChat(Message msg) {
-        String groupName = msg.getTarget();
-        if (groupName == null || groupName.isBlank()) return;
+        String groupId = msg.getTarget();
+        if (groupId == null || groupId.isBlank()) return;
         SwingUtilities.invokeLater(() -> {
-            if (joinedGroups.add(groupName) && groupsListener != null) {
-                groupsListener.accept(Set.copyOf(joinedGroups));
-            }
-            openGroup(groupName).receive(msg);
+            String name = joinedGroups.get(groupId);
+            if (name == null) return;       // unknown group — drop
+            openGroup(groupId, name).receive(msg);
         });
     }
 
