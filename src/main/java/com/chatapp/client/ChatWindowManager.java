@@ -319,6 +319,23 @@ public class ChatWindowManager {
         });
     }
 
+    // GROUP_LIST is sent at login to restore membership. Populate the list
+    // but do NOT auto-open tabs — the user picks which groups to re-open.
+    public void handleGroupList(Message msg) {
+        String content = msg.getContent();
+        if (content == null || content.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            boolean changed = false;
+            for (String name : content.split(",")) {
+                String n = name.trim();
+                if (!n.isEmpty() && joinedGroups.add(n)) changed = true;
+            }
+            if (changed && groupsListener != null) {
+                groupsListener.accept(Set.copyOf(joinedGroups));
+            }
+        });
+    }
+
     public void dispatchGroupChat(Message msg) {
         String groupName = msg.getTarget();
         if (groupName == null || groupName.isBlank()) return;

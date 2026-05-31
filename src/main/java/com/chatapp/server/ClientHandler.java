@@ -63,6 +63,17 @@ public class ClientHandler implements Runnable {
                     server.register(username, this);
                     send(new Message(Message.Type.ACK, "server", username, "LOGIN_OK"));
                     server.broadcastUserList();
+                    StringBuilder myGroups = new StringBuilder();
+                    for (Group g : server.groups().all().values()) {
+                        if (g.contains(username)) {
+                            if (myGroups.length() > 0) myGroups.append(",");
+                            myGroups.append(g.getName());
+                        }
+                    }
+                    if (myGroups.length() > 0) {
+                        send(new Message(Message.Type.GROUP_LIST,
+                                "server", username, myGroups.toString()));
+                    }
                 } else {
                     send(new Message(Message.Type.ACK, "server", msg.getSender(), "LOGIN_FAIL"));
                 }

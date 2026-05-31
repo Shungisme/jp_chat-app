@@ -73,6 +73,43 @@ public class HistoryManager {
         } catch (IOException ignored) {}
     }
 
+    // ---------------- group history ----------------
+
+    private static Path groupFileFor(String me, String groupName) {
+        return BASE.resolve(me).resolve("group__" + groupName + ".log");
+    }
+
+    public static synchronized void appendGroup(String me, String groupName, Message msg) {
+        try {
+            Path f = groupFileFor(me, groupName);
+            Files.createDirectories(f.getParent());
+            String line = msg.getTimestamp() + "|" + msg.getSender() + "|"
+                    + msg.getType() + "|" + safe(msg.getContent()) + "\n";
+            Files.writeString(f, line, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            System.err.println("[History] group append failed: " + e.getMessage());
+        }
+    }
+
+    public static List<String> loadGroup(String me, String groupName) {
+        try {
+            Path f = groupFileFor(me, groupName);
+            if (!Files.exists(f)) return List.of();
+            List<String> raw = Files.readAllLines(f, StandardCharsets.UTF_8);
+            List<String> valid = new ArrayList<>();
+            for (String line : raw) {
+                if (line == null || line.isBlank()) continue;
+                if (line.split("\\|", 4).length < 4) continue;
+                valid.add(line);
+            }
+            return valid;
+        } catch (IOException e) {
+            System.err.println("[History] group load failed: " + e.getMessage());
+            return List.of();
+        }
+    }
+
     private static String safe(String s) {
         return s == null ? "" : s.replace("\n", "\\n");
     }
