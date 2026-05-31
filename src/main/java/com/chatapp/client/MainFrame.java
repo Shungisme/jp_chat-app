@@ -47,17 +47,24 @@ public class MainFrame extends JFrame {
         if (iconUrl != null) setIconImage(new ImageIcon(iconUrl).getImage());
 
         // Header
-        JPanel header = new JPanel(new GridLayout(0, 1));
+        JPanel header = new JPanel(new BorderLayout(8, 0));
         header.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
+        JPanel headerText = new JPanel(new GridLayout(0, 1));
         JLabel title = new JLabel("ChatApp — " + client.getUsername());
         title.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        header.add(title);
+        headerText.add(title);
         if (server != null) {
             JLabel info = new JLabel("Server: " + server.label());
             info.setFont(new Font("Segoe UI", Font.PLAIN, 11));
             info.setForeground(new Color(90, 90, 90));
-            header.add(info);
+            headerText.add(info);
         }
+        header.add(headerText, BorderLayout.CENTER);
+        JButton logoutButton = new JButton("Đăng xuất");
+        JPanel headerRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        headerRight.add(logoutButton);
+        header.add(headerRight, BorderLayout.EAST);
+        logoutButton.addActionListener(e -> doLogout(false, null));
 
         // Left top — online users
         JPanel usersPanel = new JPanel(new BorderLayout(4, 4));
@@ -236,6 +243,25 @@ public class MainFrame extends JFrame {
         usersList.repaint();
     }
 
+    private void doLogout(boolean kicked, String reason) {
+        if (!kicked) {
+            try {
+                client.send(new Message(Message.Type.LOGOUT, client.getUsername(), "server", ""));
+            } catch (Exception ignored) {}
+        }
+        try { client.close(); } catch (Exception ignored) {}
+        if (windows != null) windows.closeAll();
+        dispose();
+        SwingUtilities.invokeLater(() -> {
+            LoginFrame lf = new LoginFrame();
+            lf.setVisible(true);
+            if (kicked && reason != null) {
+                JOptionPane.showMessageDialog(lf, reason,
+                        "Bị đăng xuất", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+    }
+
     public void onMessage(Message msg) {
         switch (msg.getType()) {
             case USER_LIST -> SwingUtilities.invokeLater(() -> {
@@ -251,6 +277,7 @@ public class MainFrame extends JFrame {
             case GROUP_CHAT -> windows.dispatchGroupChat(msg);
             case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case GROUP_LIST -> windows.handleGroupList(msg);
+            case KICKED -> SwingUtilities.invokeLater(() -> doLogout(true, msg.getContent()));
             case VOICE_INVITE -> windows.handleVoiceInvite(msg);
             case VOICE_ACCEPT -> windows.handleVoiceAccept(msg);
             case VOICE_REJECT -> windows.handleVoiceReject(msg);

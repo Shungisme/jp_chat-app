@@ -39,11 +39,19 @@ public class ClientHandler implements Runnable {
     private void cleanup() {
         try {
             if (username != null) {
-                server.unregister(username);
+                server.unregister(username, this);
                 server.broadcastUserList();
             }
             if (in != null) in.close();
             if (out != null) out.close();
+            if (!socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
+    }
+
+    // Called by the server when this session is being kicked. Closing the
+    // socket makes the read loop exit; cleanup() runs from the finally block.
+    public void disconnect() {
+        try {
             if (!socket.isClosed()) socket.close();
         } catch (IOException ignored) {}
     }
@@ -59,6 +67,15 @@ public class ClientHandler implements Runnable {
             case LOGIN -> {
                 String[] cred = msg.getContent().split(":", 2);
                 if (cred.length == 2 && server.users().authenticate(cred[0], cred[1])) {
+                    // Kick any existing session for this account.
+                    ClientHandler existing = server.get(cred[0]);
+                    if (existing != null && existing != this) {
+                        try {
+                            existing.send(new Message(Message.Type.KICKED, "server",
+                                    cred[0], "Tài khoản vừa đăng nhập tại nơi khác."));
+                        } catch (IOException ignored) {}
+                        existing.disconnect();
+                    }
                     username = cred[0];
                     server.register(username, this);
                     send(new Message(Message.Type.ACK, "server", username, "LOGIN_OK"));
@@ -121,7 +138,7 @@ public class ClientHandler implements Runnable {
             case USER_LIST -> server.broadcastUserList();
             case LOGOUT -> {
                 if (username != null) {
-                    server.unregister(username);
+                    server.unregister(username, this);
                     server.broadcastUserList();
                 }
             }
