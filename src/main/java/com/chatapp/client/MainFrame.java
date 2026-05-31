@@ -16,8 +16,8 @@ import java.util.Set;
 public class MainFrame extends JFrame {
     protected final DefaultListModel<String> usersModel = new DefaultListModel<>();
     private final JList<String> usersList = new JList<>(usersModel);
-    private final DefaultListModel<String> groupsModel = new DefaultListModel<>();
-    private final JList<String> groupsList = new JList<>(groupsModel);
+    private final DefaultListModel<GroupEntry> groupsModel = new DefaultListModel<>();
+    private final JList<GroupEntry> groupsList = new JList<>(groupsModel);
     private final JButton createGroupButton = new JButton("Tạo nhóm");
     private final JTabbedPane chatTabs = new JTabbedPane();
     private final Map<String, Integer> badges = new HashMap<>();
@@ -127,8 +127,8 @@ public class MainFrame extends JFrame {
         groupsList.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) {
                 if (e.getClickCount() == 2) {
-                    String gn = groupsList.getSelectedValue();
-                    if (gn != null) windows.openGroup(gn);
+                    GroupEntry g = groupsList.getSelectedValue();
+                    if (g != null) windows.openGroup(g.id(), g.name());
                 }
             }
         });
@@ -142,12 +142,15 @@ public class MainFrame extends JFrame {
         new CreateGroupDialog(this, client, online).setVisible(true);
     }
 
-    private void updateGroups(Set<String> groups) {
+    private void updateGroups(Map<String, String> groups) {
         SwingUtilities.invokeLater(() -> {
             groupsModel.clear();
-            List<String> sorted = new ArrayList<>(groups);
-            sorted.sort(String::compareTo);
-            for (String g : sorted) groupsModel.addElement(g);
+            List<GroupEntry> sorted = new ArrayList<>();
+            for (Map.Entry<String, String> e : groups.entrySet()) {
+                sorted.add(new GroupEntry(e.getKey(), e.getValue()));
+            }
+            sorted.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
+            for (GroupEntry g : sorted) groupsModel.addElement(g);
         });
     }
 
@@ -177,30 +180,30 @@ public class MainFrame extends JFrame {
         });
     }
 
-    public void openGroupTab(String groupName, GroupPanel panel) {
+    public void openGroupTab(String groupId, String groupName, GroupPanel panel) {
         SwingUtilities.invokeLater(() -> {
-            int existing = indexOfTabByGroup(groupName);
+            int existing = indexOfTabByGroup(groupId);
             if (existing >= 0) { chatTabs.setSelectedIndex(existing); return; }
             String title = "👥 " + groupName;
             chatTabs.addTab(title, panel);
             int idx = chatTabs.indexOfComponent(panel);
             chatTabs.setTabComponentAt(idx, buildTabHeader(title,
-                    () -> windows.closeGroup(groupName)));
+                    () -> windows.closeGroup(groupId)));
             chatTabs.setSelectedIndex(idx);
             panel.requestFocusOnInput();
         });
     }
 
-    public void selectGroupTab(String groupName) {
+    public void selectGroupTab(String groupId) {
         SwingUtilities.invokeLater(() -> {
-            int existing = indexOfTabByGroup(groupName);
+            int existing = indexOfTabByGroup(groupId);
             if (existing >= 0) chatTabs.setSelectedIndex(existing);
         });
     }
 
-    public void closeGroupTab(String groupName) {
+    public void closeGroupTab(String groupId) {
         SwingUtilities.invokeLater(() -> {
-            int existing = indexOfTabByGroup(groupName);
+            int existing = indexOfTabByGroup(groupId);
             if (existing >= 0) chatTabs.remove(existing);
         });
     }
@@ -213,10 +216,10 @@ public class MainFrame extends JFrame {
         return -1;
     }
 
-    private int indexOfTabByGroup(String groupName) {
+    private int indexOfTabByGroup(String groupId) {
         for (int i = 0; i < chatTabs.getTabCount(); i++) {
             Component c = chatTabs.getComponentAt(i);
-            if (c instanceof GroupPanel gp && gp.getGroupName().equals(groupName)) return i;
+            if (c instanceof GroupPanel gp && gp.getGroupId().equals(groupId)) return i;
         }
         return -1;
     }

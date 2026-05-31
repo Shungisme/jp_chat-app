@@ -5,19 +5,24 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class Group implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
 
+    private String id;
     private String name;
     private String owner;
     private final Set<String> members = new LinkedHashSet<>();
 
     public Group() {}
-    public Group(String name, String owner) {
+
+    public Group(String id, String name, String owner) {
+        this.id = id;
         this.name = name;
         this.owner = owner;
         this.members.add(owner);
     }
 
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getOwner() { return owner; }

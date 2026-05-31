@@ -33,10 +33,12 @@ public class GroupPanel extends JPanel {
     };
 
     private final Client client;
+    private final String groupId;
     private final String groupName;
 
-    public GroupPanel(Client client, String groupName) {
+    public GroupPanel(Client client, String groupId, String groupName) {
         this.client = client;
+        this.groupId = groupId;
         this.groupName = groupName;
         setLayout(new BorderLayout(4, 4));
 
@@ -88,7 +90,7 @@ public class GroupPanel extends JPanel {
     }
 
     private void loadHistory() {
-        List<String> lines = HistoryManager.loadGroup(client.getUsername(), groupName);
+        List<String> lines = HistoryManager.loadGroup(client.getUsername(), groupId);
         ZoneId zone = ZoneId.systemDefault();
         for (String line : lines) {
             String[] parts = line.split("\\|", 4);
@@ -103,6 +105,7 @@ public class GroupPanel extends JPanel {
         }
     }
 
+    public String getGroupId() { return groupId; }
     public String getGroupName() { return groupName; }
     public void requestFocusOnInput() { input.requestFocusInWindow(); }
 
@@ -192,10 +195,10 @@ public class GroupPanel extends JPanel {
     private void onSend(ActionEvent e) {
         String text = input.getText().trim();
         if (text.isEmpty()) return;
-        Message m = new Message(Message.Type.GROUP_CHAT, client.getUsername(), groupName, text);
+        Message m = new Message(Message.Type.GROUP_CHAT, client.getUsername(), groupId, text);
         try {
             client.send(m);
-            HistoryManager.appendGroup(client.getUsername(), groupName, m);
+            HistoryManager.appendGroup(client.getUsername(), groupId, m);
             appendLine("Tôi", text);
             input.setText("");
         } catch (Exception ex) {
@@ -205,7 +208,7 @@ public class GroupPanel extends JPanel {
 
     public void receive(Message m) {
         SwingUtilities.invokeLater(() -> {
-            HistoryManager.appendGroup(client.getUsername(), groupName, m);
+            HistoryManager.appendGroup(client.getUsername(), groupId, m);
             appendLine(m.getSender(), m.getContent());
         });
     }
