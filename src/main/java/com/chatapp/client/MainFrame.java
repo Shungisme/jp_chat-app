@@ -279,6 +279,7 @@ public class MainFrame extends JFrame {
             case FILE -> windows.dispatchFile(msg);
             case GROUP_CHAT, GROUP_FILE -> windows.dispatchGroupChat(msg);
             case GROUP_VOICE -> windows.dispatchGroupVoice(msg);
+            case GROUP_VIDEO -> windows.dispatchGroupVideo(msg);
             case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case GROUP_LIST -> windows.handleGroupList(msg);
             case KICKED -> SwingUtilities.invokeLater(() -> doLogout(true, msg.getContent()));

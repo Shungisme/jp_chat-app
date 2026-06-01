@@ -36,6 +36,7 @@ public class GroupPanel extends JPanel {
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
     private final JButton voiceButton = new JButton("🎙");
+    private final JButton videoButton = new JButton("📹");
     private final JButton emojiButton = new JButton("😀");
     private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
 
@@ -50,11 +51,17 @@ public class GroupPanel extends JPanel {
     private final Client client;
     private final String groupId;
     private final String groupName;
+    private final ChatWindowManager manager;
 
     public GroupPanel(Client client, String groupId, String groupName) {
+        this(client, groupId, groupName, null);
+    }
+
+    public GroupPanel(Client client, String groupId, String groupName, ChatWindowManager manager) {
         this.client = client;
         this.groupId = groupId;
         this.groupName = groupName;
+        this.manager = manager;
         setLayout(new BorderLayout(4, 4));
 
         JLabel header = new JLabel("Nhóm: " + groupName);
@@ -92,8 +99,10 @@ public class GroupPanel extends JPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         fileButton.setToolTipText("Gửi file cho cả nhóm");
         voiceButton.setToolTipText("Bật / tắt voice nhóm");
+        videoButton.setToolTipText("Mở phòng video nhóm");
         buttons.add(fileButton);
         buttons.add(voiceButton);
+        buttons.add(videoButton);
         buttons.add(sendButton);
 
         JPanel topRow = new JPanel(new BorderLayout(4, 0));
@@ -107,6 +116,7 @@ public class GroupPanel extends JPanel {
         sendButton.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
         voiceButton.addActionListener(e -> toggleVoice());
+        videoButton.addActionListener(e -> openVideoRoom());
         emojiButton.addActionListener(e -> showEmojiPopup());
 
         installKeyBindings();
@@ -129,6 +139,10 @@ public class GroupPanel extends JPanel {
         } catch (Exception ex) {
             appendLine("[lỗi file]", ex.getMessage());
         }
+    }
+
+    private void openVideoRoom() {
+        if (manager != null) manager.openGroupVideoRoom(groupId, groupName);
     }
 
     private void toggleVoice() {
