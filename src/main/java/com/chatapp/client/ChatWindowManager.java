@@ -21,6 +21,7 @@ public class ChatWindowManager {
     private final Map<String, JDialog> outgoingVoiceCalls = new ConcurrentHashMap<>();
     private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
     private final Map<String, GroupPanel> groupPanels = new ConcurrentHashMap<>();
+    private final Map<String, GroupVideoRoomFrame> groupVideoRooms = new ConcurrentHashMap<>();
     private final Map<String, String> joinedGroups = new ConcurrentHashMap<>();
     private Consumer<Map<String, String>> groupsListener;
     private MainFrame mainFrame;
@@ -295,7 +296,7 @@ public class ChatWindowManager {
 
     public GroupPanel openGroup(String groupId, String groupName) {
         GroupPanel p = groupPanels.computeIfAbsent(groupId, id -> {
-            GroupPanel np = new GroupPanel(client, id, groupName);
+            GroupPanel np = new GroupPanel(client, id, groupName, this);
             if (mainFrame != null) mainFrame.openGroupTab(id, groupName, np);
             return np;
         });
@@ -305,7 +306,89 @@ public class ChatWindowManager {
 
     public void closeGroup(String groupId) {
         GroupPanel p = groupPanels.remove(groupId);
-        if (p != null && mainFrame != null) mainFrame.closeGroupTab(groupId);
+        if (p != null) {
+            p.stopVoice();
+            if (mainFrame != null) mainFrame.closeGroupTab(groupId);
+        }
+    }
+
+    public void dispatchGroupVoice(Message msg) {
+        String groupId = msg.getTarget();
+        if (groupId == null || groupId.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            GroupPanel p = groupPanels.get(groupId);
+            if (p != null) p.playGroupVoice(msg);
+        });
+    }
+
+    public GroupVideoRoomFrame openGroupVideoRoom(String groupId, String groupName) {
+        GroupVideoRoomFrame f = groupVideoRooms.computeIfAbsent(groupId, id -> {
+            GroupVideoRoomFrame nf = new GroupVideoRoomFrame(client, id, groupName,
+                    groupVideoRooms::remove);
+            nf.setVisible(true);
+            return nf;
+        });
+        f.toFront();
+        return f;
+    }
+
+    public void dispatchGroupVideo(Message msg) {
+        String groupId = msg.getTarget();
+        if (groupId == null || groupId.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            GroupVideoRoomFrame f = groupVideoRooms.get(groupId);
+            if (f != null) f.receive(msg);
+        });
+    }
+
+    // ---------------- members management ----------------
+
+    private final Map<String, java.util.function.Consumer<GroupInfo>> pendingInfoRequests
+            = new ConcurrentHashMap<>();
+
+    public void queryGroupMembers(String groupId, java.util.function.Consumer<GroupInfo> onResult) {
+        pendingInfoRequests.put(groupId, onResult);
+        try {
+            client.send(new Message(Message.Type.GROUP_QUERY,
+                    client.getUsername(), groupId, ""));
+        } catch (Exception ex) {
+            pendingInfoRequests.remove(groupId);
+            onResult.accept(null);
+        }
+    }
+
+    public void handleGroupInfo(Message msg) {
+        String content = msg.getContent();
+        if (content == null || content.isBlank()) return;
+        String[] parts = content.split("\\|", 3);
+        if (parts.length < 2) return;
+        String groupId = parts[0].trim();
+        String owner = parts[1].trim();
+        java.util.List<String> members = new java.util.ArrayList<>();
+        if (parts.length == 3 && !parts[2].isBlank()) {
+            for (String m : parts[2].split(",")) {
+                String mt = m.trim();
+                if (!mt.isEmpty()) members.add(mt);
+            }
+        }
+        GroupInfo info = new GroupInfo(groupId, owner, members);
+        java.util.function.Consumer<GroupInfo> cb = pendingInfoRequests.remove(groupId);
+        if (cb != null) SwingUtilities.invokeLater(() -> cb.accept(info));
+    }
+
+    public void handleGroupRemoved(Message msg) {
+        String groupId = msg.getContent();
+        if (groupId == null || groupId.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            String name = joinedGroups.remove(groupId);
+            if (groupsListener != null) groupsListener.accept(Map.copyOf(joinedGroups));
+            closeGroup(groupId);
+            if (mainFrame != null) {
+                JOptionPane.showMessageDialog(mainFrame,
+                        "Bạn đã bị xoá khỏi nhóm " + (name != null ? name : groupId) + ".",
+                        "Đã rời nhóm", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
     }
 
     // Parses payload "id|name" used by GROUP_INVITE.
@@ -371,10 +454,13 @@ public class ChatWindowManager {
         SwingUtilities.invokeLater(() -> {
             for (VoiceCallFrame f : voiceFrames.values()) f.dispose();
             for (VideoCallFrame f : videoFrames.values()) f.dispose();
+            for (GroupVideoRoomFrame f : groupVideoRooms.values()) f.dispose();
             for (JDialog d : outgoingVoiceCalls.values()) d.dispose();
             for (JDialog d : outgoingVideoCalls.values()) d.dispose();
+            for (GroupPanel p : groupPanels.values()) p.stopVoice();
             voiceFrames.clear();
             videoFrames.clear();
+            groupVideoRooms.clear();
             outgoingVoiceCalls.clear();
             outgoingVideoCalls.clear();
         });

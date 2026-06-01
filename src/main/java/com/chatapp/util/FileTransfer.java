@@ -12,6 +12,11 @@ public class FileTransfer {
     public static final int CHUNK_SIZE = 4096;
 
     public static Message buildFileMessage(String sender, String target, Path file) throws IOException {
+        return buildFileMessage(sender, target, file, Message.Type.FILE);
+    }
+
+    public static Message buildFileMessage(String sender, String target, Path file,
+                                           Message.Type type) throws IOException {
         try (InputStream is = Files.newInputStream(file);
              ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
             byte[] buf = new byte[CHUNK_SIZE];
@@ -19,7 +24,7 @@ public class FileTransfer {
             while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
             String b64 = Base64.getEncoder().encodeToString(bos.toByteArray());
             String content = file.getFileName().toString() + "|" + b64;
-            return new Message(Message.Type.FILE, sender, target, content);
+            return new Message(type, sender, target, content);
         }
     }
 
