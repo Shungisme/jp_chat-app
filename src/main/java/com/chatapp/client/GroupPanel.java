@@ -3,7 +3,9 @@ package com.chatapp.client;
 import com.chatapp.model.Message;
 import com.chatapp.util.FileTransfer;
 import com.chatapp.util.HistoryManager;
+import com.chatapp.util.VoiceChat;
 
+import javax.sound.sampled.LineUnavailableException;
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
@@ -15,6 +17,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -32,8 +35,12 @@ public class GroupPanel extends JPanel {
     private final JTextPane input = new JTextPane();
     private final JButton sendButton = new JButton("Gửi");
     private final JButton fileButton = new JButton("📎");
+    private final JButton voiceButton = new JButton("🎙");
     private final JButton emojiButton = new JButton("😀");
     private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
+
+    private final VoiceChat voice = new VoiceChat();
+    private boolean voiceJoined = false;
 
     private static final String[] EMOJIS = {
             "😀", "😂", "😍", "😎", "😢", "👍",
@@ -84,7 +91,9 @@ public class GroupPanel extends JPanel {
         bottom.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         fileButton.setToolTipText("Gửi file cho cả nhóm");
+        voiceButton.setToolTipText("Bật / tắt voice nhóm");
         buttons.add(fileButton);
+        buttons.add(voiceButton);
         buttons.add(sendButton);
 
         JPanel topRow = new JPanel(new BorderLayout(4, 0));
@@ -97,6 +106,7 @@ public class GroupPanel extends JPanel {
 
         sendButton.addActionListener(this::onSend);
         fileButton.addActionListener(this::onPickFile);
+        voiceButton.addActionListener(e -> toggleVoice());
         emojiButton.addActionListener(e -> showEmojiPopup());
 
         installKeyBindings();
@@ -118,6 +128,55 @@ public class GroupPanel extends JPanel {
             appendFileLine("Tôi", f.getName(), f.toPath(), "đã gửi (bấm để mở)");
         } catch (Exception ex) {
             appendLine("[lỗi file]", ex.getMessage());
+        }
+    }
+
+    private void toggleVoice() {
+        if (voiceJoined) {
+            voice.stop();
+            voiceButton.setText("🎙");
+            appendLine("[voice]", "Bạn rời voice nhóm.");
+            voiceJoined = false;
+        } else {
+            try {
+                voice.startPlayback();
+                voice.startCapture(this::sendVoiceChunk);
+                voiceButton.setText("🛑");
+                appendLine("[voice]", "Bạn tham gia voice nhóm.");
+                voiceJoined = true;
+            } catch (LineUnavailableException ex) {
+                JOptionPane.showMessageDialog(this,
+                        "Không mở được mic / loa: " + ex.getMessage(),
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void sendVoiceChunk(byte[] chunk) {
+        try {
+            String b64 = Base64.getEncoder().encodeToString(chunk);
+            client.send(new Message(Message.Type.GROUP_VOICE,
+                    client.getUsername(), groupId, b64));
+        } catch (Exception ex) {
+            System.err.println("[Voice] group send failed: " + ex.getMessage());
+        }
+    }
+
+    public void playGroupVoice(Message m) {
+        if (!voiceJoined) return;       // not in the room, drop the chunk
+        if (m.getSender().equals(client.getUsername())) return; // echo guard
+        try {
+            byte[] chunk = Base64.getDecoder().decode(m.getContent());
+            voice.play(chunk);
+        } catch (Exception ex) {
+            System.err.println("[Voice] group play failed: " + ex.getMessage());
+        }
+    }
+
+    public void stopVoice() {
+        if (voiceJoined) {
+            voice.stop();
+            voiceJoined = false;
         }
     }
 

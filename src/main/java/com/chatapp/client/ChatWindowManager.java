@@ -305,7 +305,19 @@ public class ChatWindowManager {
 
     public void closeGroup(String groupId) {
         GroupPanel p = groupPanels.remove(groupId);
-        if (p != null && mainFrame != null) mainFrame.closeGroupTab(groupId);
+        if (p != null) {
+            p.stopVoice();
+            if (mainFrame != null) mainFrame.closeGroupTab(groupId);
+        }
+    }
+
+    public void dispatchGroupVoice(Message msg) {
+        String groupId = msg.getTarget();
+        if (groupId == null || groupId.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            GroupPanel p = groupPanels.get(groupId);
+            if (p != null) p.playGroupVoice(msg);
+        });
     }
 
     // Parses payload "id|name" used by GROUP_INVITE.
