@@ -28,6 +28,7 @@ public final class UiKit {
 
         public void setFocused(boolean f) { this.focused = f; repaint(); }
         public void setFill(Color c) { this.fill = c; repaint(); }
+        public Color getFill() { return fill; }
 
         @Override protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();

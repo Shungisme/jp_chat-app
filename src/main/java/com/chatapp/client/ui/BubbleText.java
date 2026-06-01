@@ -41,6 +41,7 @@ public class BubbleText extends JComponent {
     }
 
     public void setColor(Color c) { this.color = c; repaint(); }
+    public Color getColor() { return color; }
 
     public void setMaxWidth(int w) {
         if (w != maxWidth) { maxWidth = Math.max(40, w); revalidate(); repaint(); }
