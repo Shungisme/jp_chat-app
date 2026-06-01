@@ -132,7 +132,31 @@ public class ClientHandler implements Runnable {
                     }
                 }
             }
-            case GROUP_CHAT -> server.broadcastGroup(msg);
+            case GROUP_CHAT, GROUP_FILE, GROUP_VOICE, GROUP_VIDEO ->
+                    server.broadcastGroup(msg);
+            case GROUP_QUERY -> {
+                Group g = server.groups().get(msg.getTarget());
+                if (g != null) {
+                    String payload = g.getId() + "|" + g.getOwner() + "|"
+                            + String.join(",", g.getMembers());
+                    send(new Message(Message.Type.GROUP_INFO, "server",
+                            msg.getSender(), payload));
+                }
+            }
+            case GROUP_REMOVE -> {
+                String groupId = msg.getTarget();
+                String kickedUser = msg.getContent();
+                Group g = server.groups().get(groupId);
+                if (g != null && g.getOwner().equals(msg.getSender())
+                        && !kickedUser.equals(g.getOwner())
+                        && server.groups().remove(groupId, kickedUser)) {
+                    ClientHandler kicked = server.get(kickedUser);
+                    if (kicked != null) {
+                        kicked.send(new Message(Message.Type.GROUP_REMOVED,
+                                "server", kickedUser, groupId));
+                    }
+                }
+            }
             case VOICE_INVITE, VOICE_ACCEPT, VOICE_REJECT, VOICE, VOICE_END,
                  VIDEO_INVITE, VIDEO_ACCEPT, VIDEO_REJECT, VIDEO, VIDEO_END -> {
                 ClientHandler target = server.get(msg.getTarget());
