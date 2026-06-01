@@ -6,9 +6,12 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -22,6 +25,7 @@ public class ChatWindowManager {
     private final Map<String, JDialog> outgoingVideoCalls = new ConcurrentHashMap<>();
     private final Map<String, GroupPanel> groupPanels = new ConcurrentHashMap<>();
     private final Map<String, GroupVideoRoomFrame> groupVideoRooms = new ConcurrentHashMap<>();
+    private final Map<String, GroupVoiceRoomFrame> groupVoiceRooms = new ConcurrentHashMap<>();
     private final Map<String, String> joinedGroups = new ConcurrentHashMap<>();
     private Consumer<Map<String, String>> groupsListener;
     private MainFrame mainFrame;
@@ -31,6 +35,15 @@ public class ChatWindowManager {
     private final Set<String> recentlyClosedVideo = ConcurrentHashMap.newKeySet();
     private final Map<String, AtomicInteger> unread = new ConcurrentHashMap<>();
     private BiConsumer<String, Integer> badgeListener;
+    private volatile List<String> onlineUsers = List.of();
+    // Voice playback runs off the EDT because SourceDataLine.write() blocks
+    // until the speaker buffer accepts the chunk — on the EDT that freezes the
+    // UI for ~100 ms per chunk and makes the call feel broken.
+    private final ExecutorService voicePool = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "voice-playback");
+        t.setDaemon(true);
+        return t;
+    });
 
     public ChatWindowManager(Client client) {
         this.client = client;
@@ -46,6 +59,14 @@ public class ChatWindowManager {
 
     public void setGroupsListener(Consumer<Map<String, String>> listener) {
         this.groupsListener = listener;
+    }
+
+    public void setOnlineUsers(List<String> users) {
+        this.onlineUsers = users == null ? List.of() : List.copyOf(users);
+    }
+
+    public List<String> getOnlineUsers() {
+        return onlineUsers;
     }
 
     public Map<String, String> joinedGroups() {
@@ -259,7 +280,7 @@ public class ChatWindowManager {
     public void dispatchVoice(Message msg) {
         String key = msg.getSender().equals(client.getUsername())
                 ? msg.getTarget() : msg.getSender();
-        SwingUtilities.invokeLater(() -> {
+        voicePool.execute(() -> {
             VoiceCallFrame f = voiceFrames.get(key);
             if (f != null) f.receive(msg);
         });
@@ -307,7 +328,8 @@ public class ChatWindowManager {
     public void closeGroup(String groupId) {
         GroupPanel p = groupPanels.remove(groupId);
         if (p != null) {
-            p.stopVoice();
+            // Group voice now lives in GroupVoiceRoomFrame, not the panel —
+            // closing the panel does not affect an open voice room.
             if (mainFrame != null) mainFrame.closeGroupTab(groupId);
         }
     }
@@ -315,20 +337,135 @@ public class ChatWindowManager {
     public void dispatchGroupVoice(Message msg) {
         String groupId = msg.getTarget();
         if (groupId == null || groupId.isBlank()) return;
-        SwingUtilities.invokeLater(() -> {
-            GroupPanel p = groupPanels.get(groupId);
-            if (p != null) p.playGroupVoice(msg);
+        voicePool.execute(() -> {
+            GroupVoiceRoomFrame f = groupVoiceRooms.get(groupId);
+            if (f != null) f.play(msg);
         });
     }
 
-    public GroupVideoRoomFrame openGroupVideoRoom(String groupId, String groupName) {
-        GroupVideoRoomFrame f = groupVideoRooms.computeIfAbsent(groupId, id -> {
-            GroupVideoRoomFrame nf = new GroupVideoRoomFrame(client, id, groupName,
-                    groupVideoRooms::remove);
-            nf.setVisible(true);
-            return nf;
+    public GroupVoiceRoomFrame openGroupVoiceRoom(String groupId, String groupName) {
+        GroupVoiceRoomFrame existing = groupVoiceRooms.get(groupId);
+        if (existing != null) { existing.toFront(); return existing; }
+        // Register the frame in the map BEFORE sending GROUP_VOICE_JOIN —
+        // otherwise the server's GROUP_VOICE_ROOM reply can race the reader
+        // thread and arrive while groupVoiceRooms.get(groupId) is still null,
+        // dropping the snapshot and leaving this joiner without a roster.
+        GroupVoiceRoomFrame f = new GroupVoiceRoomFrame(client, groupId, groupName,
+                groupVoiceRooms::remove);
+        GroupVoiceRoomFrame prev = groupVoiceRooms.putIfAbsent(groupId, f);
+        if (prev != null) {
+            f.dispose();
+            prev.toFront();
+            return prev;
+        }
+        f.setVisible(true);
+        f.start();
+        return f;
+    }
+
+    public void dispatchGroupVoiceJoin(Message msg) {
+        String groupId = msg.getTarget();
+        String who = msg.getSender();
+        if (groupId == null || who == null) return;
+        GroupVoiceRoomFrame f = groupVoiceRooms.get(groupId);
+        if (f != null) f.participantJoined(who);
+    }
+
+    public void dispatchGroupVoiceLeave(Message msg) {
+        String groupId = msg.getTarget();
+        String who = msg.getSender();
+        if (groupId == null || who == null) return;
+        GroupVoiceRoomFrame f = groupVoiceRooms.get(groupId);
+        if (f != null) f.participantLeft(who);
+    }
+
+    public void dispatchGroupVoiceStart(Message msg) {
+        dispatchCallStart(msg, false);
+    }
+
+    public void dispatchGroupVoiceEnd(Message msg) {
+        dispatchCallEnd(msg, false);
+    }
+
+    public void dispatchGroupVideoStart(Message msg) {
+        dispatchCallStart(msg, true);
+    }
+
+    public void dispatchGroupVideoEnd(Message msg) {
+        dispatchCallEnd(msg, true);
+    }
+
+    // Renders the centered "X đã bật voice/video" bubble in the group panel.
+    // The bubble's join action opens the corresponding voice / video room
+    // frame; clicking again while the user is already in is harmless because
+    // the open methods are idempotent (computeIfAbsent).
+    private void dispatchCallStart(Message msg, boolean video) {
+        String groupId = msg.getTarget();
+        String initiator = msg.getSender();
+        long ts = msg.getTimestamp();
+        if (groupId == null || initiator == null) return;
+        SwingUtilities.invokeLater(() -> {
+            String name = joinedGroups.getOrDefault(groupId, groupId);
+            GroupPanel p = openGroup(groupId, name);
+            Runnable join = video
+                    ? () -> openGroupVideoRoom(groupId, name)
+                    : () -> openGroupVoiceRoom(groupId, name);
+            p.addCallStartNotice(initiator, ts, video, join);
         });
-        f.toFront();
+    }
+
+    // Renders the "Voice/Video nhóm đã kết thúc" bubble and force-disposes any
+    // frame still open for that group — a stale frame would otherwise stay up
+    // with nobody to hear its audio.
+    private void dispatchCallEnd(Message msg, boolean video) {
+        String groupId = msg.getTarget();
+        long ts = msg.getTimestamp();
+        if (groupId == null) return;
+        SwingUtilities.invokeLater(() -> {
+            String name = joinedGroups.getOrDefault(groupId, groupId);
+            GroupPanel p = openGroup(groupId, name);
+            p.addCallEndNotice(ts, video);
+            if (video) {
+                GroupVideoRoomFrame vf = groupVideoRooms.remove(groupId);
+                if (vf != null) vf.dispose();
+            } else {
+                GroupVoiceRoomFrame vf = groupVoiceRooms.remove(groupId);
+                if (vf != null) vf.dispose();
+            }
+        });
+    }
+
+    // GROUP_VOICE_ROOM content: "groupId|user1,user2,..." (roster may be empty)
+    public void dispatchGroupVoiceRoom(Message msg) {
+        String content = msg.getContent();
+        if (content == null) return;
+        String[] parts = content.split("\\|", 2);
+        if (parts.length < 1) return;
+        String groupId = parts[0];
+        java.util.Set<String> roster = new java.util.LinkedHashSet<>();
+        if (parts.length == 2 && !parts[1].isBlank()) {
+            for (String u : parts[1].split(",")) {
+                String t = u.trim();
+                if (!t.isEmpty()) roster.add(t);
+            }
+        }
+        GroupVoiceRoomFrame f = groupVoiceRooms.get(groupId);
+        if (f != null) f.applyRoster(roster);
+    }
+
+    public GroupVideoRoomFrame openGroupVideoRoom(String groupId, String groupName) {
+        GroupVideoRoomFrame existing = groupVideoRooms.get(groupId);
+        if (existing != null) { existing.toFront(); return existing; }
+        GroupVideoRoomFrame f = new GroupVideoRoomFrame(client, groupId, groupName,
+                groupVideoRooms::remove);
+        GroupVideoRoomFrame prev = groupVideoRooms.putIfAbsent(groupId, f);
+        if (prev != null) {
+            f.dispose();
+            prev.toFront();
+            return prev;
+        }
+        f.setVisible(true);
+        f.start();
         return f;
     }
 
@@ -455,12 +592,13 @@ public class ChatWindowManager {
             for (VoiceCallFrame f : voiceFrames.values()) f.dispose();
             for (VideoCallFrame f : videoFrames.values()) f.dispose();
             for (GroupVideoRoomFrame f : groupVideoRooms.values()) f.dispose();
+            for (GroupVoiceRoomFrame f : groupVoiceRooms.values()) f.dispose();
             for (JDialog d : outgoingVoiceCalls.values()) d.dispose();
             for (JDialog d : outgoingVideoCalls.values()) d.dispose();
-            for (GroupPanel p : groupPanels.values()) p.stopVoice();
             voiceFrames.clear();
             videoFrames.clear();
             groupVideoRooms.clear();
+            groupVoiceRooms.clear();
             outgoingVoiceCalls.clear();
             outgoingVideoCalls.clear();
         });

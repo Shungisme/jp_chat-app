@@ -39,6 +39,13 @@ public class ClientHandler implements Runnable {
     private void cleanup() {
         try {
             if (username != null) {
+                // Announce leaves for every voice / video room this client was
+                // in. If a room becomes empty as a result, also broadcast END
+                // to the whole group so the call-notice bubble updates.
+                dropAndAnnounce(server.dropFromAllVoiceRooms(username),
+                        Message.Type.GROUP_VOICE_LEAVE, Message.Type.GROUP_VOICE_END);
+                dropAndAnnounce(server.dropFromAllVideoRooms(username),
+                        Message.Type.GROUP_VIDEO_LEAVE, Message.Type.GROUP_VIDEO_END);
                 server.unregister(username, this);
                 server.broadcastUserList();
             }
@@ -46,6 +53,29 @@ public class ClientHandler implements Runnable {
             if (out != null) out.close();
             if (!socket.isClosed()) socket.close();
         } catch (IOException ignored) {}
+    }
+
+    private void dropAndAnnounce(java.util.Map<String, java.util.Set<String>> affected,
+                                 Message.Type leaveType, Message.Type endType) {
+        for (java.util.Map.Entry<String, java.util.Set<String>> e : affected.entrySet()) {
+            String groupId = e.getKey();
+            java.util.Set<String> remaining = e.getValue();
+            // Tell anyone still in the room that we're gone.
+            Message leave = new Message(leaveType, username, groupId, "");
+            for (String m : remaining) {
+                ClientHandler h = server.get(m);
+                if (h != null) {
+                    try { h.send(leave); } catch (IOException ignored) {}
+                }
+            }
+            // Room emptied because of this disconnect — END the whole call.
+            if (remaining.isEmpty()) {
+                try {
+                    server.broadcastToGroup(groupId,
+                            new Message(endType, "server", groupId, ""));
+                } catch (IOException ignored) {}
+            }
+        }
     }
 
     // Called by the server when this session is being kicked. Closing the
@@ -91,6 +121,22 @@ public class ClientHandler implements Runnable {
                         send(new Message(Message.Type.GROUP_LIST,
                                 "server", username, myGroups.toString()));
                     }
+                    // Retroactive START notices: every group call that's
+                    // already in progress (room non-empty) appears as a
+                    // clickable bubble for the freshly-logged-in user.
+                    for (Group g : server.groups().all().values()) {
+                        if (!g.contains(username)) continue;
+                        java.util.Set<String> voiceRoom = server.voiceRoomMembers(g.getId());
+                        if (!voiceRoom.isEmpty()) {
+                            send(new Message(Message.Type.GROUP_VOICE_START,
+                                    voiceRoom.iterator().next(), g.getId(), ""));
+                        }
+                        java.util.Set<String> videoRoom = server.videoRoomMembers(g.getId());
+                        if (!videoRoom.isEmpty()) {
+                            send(new Message(Message.Type.GROUP_VIDEO_START,
+                                    videoRoom.iterator().next(), g.getId(), ""));
+                        }
+                    }
                 } else {
                     send(new Message(Message.Type.ACK, "server", msg.getSender(), "LOGIN_FAIL"));
                 }
@@ -132,8 +178,55 @@ public class ClientHandler implements Runnable {
                     }
                 }
             }
-            case GROUP_CHAT, GROUP_FILE, GROUP_VOICE, GROUP_VIDEO ->
-                    server.broadcastGroup(msg);
+            case GROUP_CHAT, GROUP_FILE -> server.broadcastGroup(msg);
+            case GROUP_VOICE -> server.broadcastToVoiceRoom(msg);
+            case GROUP_VIDEO -> server.broadcastToVideoRoom(msg);
+            case GROUP_VOICE_JOIN -> {
+                String groupId = msg.getTarget();
+                Group g = server.groups().get(groupId);
+                if (g == null || username == null || !g.contains(username)) break;
+                boolean firstInRoom = server.joinVoiceRoom(groupId, username);
+                if (firstInRoom) {
+                    server.broadcastToGroup(groupId, new Message(
+                            Message.Type.GROUP_VOICE_START, username, groupId, ""));
+                }
+                String roster = String.join(",", server.voiceRoomMembers(groupId));
+                send(new Message(Message.Type.GROUP_VOICE_ROOM,
+                        "server", username, groupId + "|" + roster));
+                server.broadcastToVoiceRoom(msg);
+            }
+            case GROUP_VOICE_LEAVE -> {
+                String groupId = msg.getTarget();
+                if (username == null) break;
+                // Broadcast LEAVE first, while membership still includes
+                // others, then drop the leaver; if that empties the room,
+                // tell the whole group voice ended.
+                server.broadcastToVoiceRoom(msg);
+                boolean emptied = server.leaveVoiceRoom(groupId, username);
+                if (emptied) {
+                    server.broadcastToGroup(groupId, new Message(
+                            Message.Type.GROUP_VOICE_END, "server", groupId, ""));
+                }
+            }
+            case GROUP_VIDEO_JOIN -> {
+                String groupId = msg.getTarget();
+                Group g = server.groups().get(groupId);
+                if (g == null || username == null || !g.contains(username)) break;
+                boolean firstInRoom = server.joinVideoRoom(groupId, username);
+                if (firstInRoom) {
+                    server.broadcastToGroup(groupId, new Message(
+                            Message.Type.GROUP_VIDEO_START, username, groupId, ""));
+                }
+            }
+            case GROUP_VIDEO_LEAVE -> {
+                String groupId = msg.getTarget();
+                if (username == null) break;
+                boolean emptied = server.leaveVideoRoom(groupId, username);
+                if (emptied) {
+                    server.broadcastToGroup(groupId, new Message(
+                            Message.Type.GROUP_VIDEO_END, "server", groupId, ""));
+                }
+            }
             case GROUP_QUERY -> {
                 Group g = server.groups().get(msg.getTarget());
                 if (g != null) {

@@ -9,9 +9,7 @@ import com.chatapp.client.ui.UiKit;
 import com.chatapp.model.Message;
 import com.chatapp.util.FileTransfer;
 import com.chatapp.util.HistoryManager;
-import com.chatapp.util.VoiceChat;
 
-import javax.sound.sampled.LineUnavailableException;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -24,7 +22,6 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.nio.file.Path;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -40,12 +37,9 @@ public class GroupPanel extends JPanel {
     private final JTextPane input = new JTextPane();
     private final UiKit.CircleButton sendButton = new UiKit.CircleButton("", 38);
     private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
-    private final JButton voiceButton = Icons.button(Icons.MIC, "Bật / tắt voice nhóm");
+    private final JButton voiceButton = Icons.button(Icons.MIC, "Mở phòng voice nhóm");
     private final JButton videoButton = Icons.button(Icons.VIDEO, "Mở phòng video nhóm");
     private final JButton membersButton = Icons.button(Icons.GROUP, "Xem thành viên nhóm");
-
-    private final VoiceChat voice = new VoiceChat();
-    private boolean voiceJoined = false;
 
     private static final String[] EMOJIS = {
             "😀", "😂", "😍", "😎", "😢", "👍",
@@ -116,7 +110,7 @@ public class GroupPanel extends JPanel {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, Theme.SP_1, 0));
         right.setOpaque(false);
         membersButton.addActionListener(e -> showMembers());
-        voiceButton.addActionListener(e -> toggleVoice());
+        voiceButton.addActionListener(e -> openVoiceRoom());
         videoButton.addActionListener(e -> openVideoRoom());
         right.add(membersButton);
         right.add(voiceButton);
@@ -217,63 +211,17 @@ public class GroupPanel extends JPanel {
         if (manager != null) manager.openGroupVideoRoom(groupId, groupName);
     }
 
+    private void openVoiceRoom() {
+        if (manager != null) manager.openGroupVoiceRoom(groupId, groupName);
+    }
+
     private void showMembers() {
         if (manager == null) return;
         manager.queryGroupMembers(groupId, info -> {
             Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
-            new GroupMembersDialog(owner, client, groupId, groupName, info).setVisible(true);
+            new GroupMembersDialog(owner, client, groupId, groupName, info,
+                    manager.getOnlineUsers()).setVisible(true);
         });
-    }
-
-    private void toggleVoice() {
-        if (voiceJoined) {
-            voice.stop();
-            voiceButton.setToolTipText("Bật / tắt voice nhóm");
-            conversation.addText("[voice]", false, System.currentTimeMillis(),
-                    "Bạn rời voice nhóm.", MessageBubble.Status.NONE);
-            voiceJoined = false;
-        } else {
-            try {
-                voice.startPlayback();
-                voice.startCapture(this::sendVoiceChunk);
-                voiceButton.setToolTipText("Đang trong voice — bấm để rời");
-                conversation.addText("[voice]", false, System.currentTimeMillis(),
-                        "Bạn tham gia voice nhóm.", MessageBubble.Status.NONE);
-                voiceJoined = true;
-            } catch (LineUnavailableException ex) {
-                JOptionPane.showMessageDialog(this,
-                        "Không mở được mic / loa: " + ex.getMessage(),
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    private void sendVoiceChunk(byte[] chunk) {
-        try {
-            String b64 = Base64.getEncoder().encodeToString(chunk);
-            client.send(new Message(Message.Type.GROUP_VOICE,
-                    client.getUsername(), groupId, b64));
-        } catch (Exception ex) {
-            System.err.println("[Voice] group send failed: " + ex.getMessage());
-        }
-    }
-
-    public void playGroupVoice(Message m) {
-        if (!voiceJoined) return;       // not in the room, drop the chunk
-        if (m.getSender().equals(client.getUsername())) return; // echo guard
-        try {
-            byte[] chunk = Base64.getDecoder().decode(m.getContent());
-            voice.play(chunk);
-        } catch (Exception ex) {
-            System.err.println("[Voice] group play failed: " + ex.getMessage());
-        }
-    }
-
-    public void stopVoice() {
-        if (voiceJoined) {
-            voice.stop();
-            voiceJoined = false;
-        }
     }
 
     // ---------------- history ----------------
@@ -299,6 +247,20 @@ public class GroupPanel extends JPanel {
     public String getGroupId() { return groupId; }
     public String getGroupName() { return groupName; }
     public void requestFocusOnInput() { input.requestFocusInWindow(); }
+
+    /** Renders a clickable "X đã bật voice / video — Bấm để tham gia" bubble. */
+    public void addCallStartNotice(String initiator, long ts, boolean video, Runnable onJoin) {
+        String kind = video ? "video" : "voice";
+        String title = (initiator.equals(client.getUsername()) ? "Bạn" : initiator)
+                + " đã bật " + kind + " nhóm";
+        conversation.addCallNotice(ts, title, "Bấm để tham gia", onJoin);
+    }
+
+    /** Renders a non-clickable "Voice/Video nhóm đã kết thúc" bubble. */
+    public void addCallEndNotice(long ts, boolean video) {
+        String kind = video ? "Video" : "Voice";
+        conversation.addCallNotice(ts, kind + " nhóm đã kết thúc", null, null);
+    }
 
     private void installKeyBindings() {
         InputMap im = input.getInputMap(JComponent.WHEN_FOCUSED);
