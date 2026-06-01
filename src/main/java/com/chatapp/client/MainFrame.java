@@ -417,13 +417,21 @@ public class MainFrame extends JFrame {
                         if (!u.equals(client.getUsername())) allUsers.add(u);
                     }
                 }
+                windows.setOnlineUsers(allUsers);
                 applyFilter();
             });
             case CHAT -> windows.dispatch(msg);
             case FILE -> windows.dispatchFile(msg);
             case GROUP_CHAT, GROUP_FILE -> windows.dispatchGroupChat(msg);
             case GROUP_VOICE -> windows.dispatchGroupVoice(msg);
+            case GROUP_VOICE_JOIN -> windows.dispatchGroupVoiceJoin(msg);
+            case GROUP_VOICE_LEAVE -> windows.dispatchGroupVoiceLeave(msg);
+            case GROUP_VOICE_ROOM -> windows.dispatchGroupVoiceRoom(msg);
+            case GROUP_VOICE_START -> windows.dispatchGroupVoiceStart(msg);
+            case GROUP_VOICE_END -> windows.dispatchGroupVoiceEnd(msg);
             case GROUP_VIDEO -> windows.dispatchGroupVideo(msg);
+            case GROUP_VIDEO_START -> windows.dispatchGroupVideoStart(msg);
+            case GROUP_VIDEO_END -> windows.dispatchGroupVideoEnd(msg);
             case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case GROUP_LIST -> windows.handleGroupList(msg);
             case GROUP_INFO -> windows.handleGroupInfo(msg);

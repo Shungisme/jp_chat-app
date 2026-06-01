@@ -19,6 +19,7 @@ public class GroupVideoRoomFrame extends JFrame {
 
     private final Client client;
     private final String groupId;
+    private final String groupName;
     private final Consumer<String> closeCallback;
     private final VideoCapture capture = new VideoCapture();
     private final JLabel localView = new JLabel("(local)", SwingConstants.CENTER);
@@ -35,6 +36,7 @@ public class GroupVideoRoomFrame extends JFrame {
         super("Video nhóm — " + groupName);
         this.client = client;
         this.groupId = groupId;
+        this.groupName = groupName;
         this.closeCallback = closeCallback;
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setSize(820, 480);
@@ -74,9 +76,27 @@ public class GroupVideoRoomFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosed(WindowEvent e) {
                 stopCapture();
+                try {
+                    client.send(new Message(Message.Type.GROUP_VIDEO_LEAVE,
+                            client.getUsername(), groupId, ""));
+                } catch (Exception ignored) {}
                 if (closeCallback != null) closeCallback.accept(groupId);
             }
         });
+    }
+
+    /**
+     * Sends GROUP_VIDEO_JOIN to register presence. Called after the frame is
+     * tracked in {@link ChatWindowManager}'s map, mirroring the voice room.
+     */
+    public void start() {
+        try {
+            client.send(new Message(Message.Type.GROUP_VIDEO_JOIN,
+                    client.getUsername(), groupId, ""));
+        } catch (Exception ignored) {
+            // Best-effort presence — if the join fails the room still works
+            // for whoever opened it; they just won't trigger a START notice.
+        }
 
         if (!VideoCapture.isAvailable()) {
             statusLabel.setText("Thư viện webcam chưa có — chỉ xem được người khác.");

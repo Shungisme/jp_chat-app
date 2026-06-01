@@ -7,8 +7,8 @@ public class VoiceChat {
     public static final AudioFormat FORMAT = new AudioFormat(8000f, 16, 1, true, false);
     private static final int BUFFER_SIZE = 1600;
 
-    private TargetDataLine micLine;
-    private SourceDataLine speakerLine;
+    private volatile TargetDataLine micLine;
+    private volatile SourceDataLine speakerLine;
     private Thread captureThread;
     private volatile boolean capturing;
 
@@ -21,8 +21,13 @@ public class VoiceChat {
     }
 
     public void play(byte[] chunk) {
-        if (speakerLine != null && chunk != null && chunk.length > 0) {
-            speakerLine.write(chunk, 0, chunk.length);
+        SourceDataLine line = speakerLine;
+        if (line != null && chunk != null && chunk.length > 0) {
+            try {
+                line.write(chunk, 0, chunk.length);
+            } catch (Exception ignored) {
+                // line was closed by stop() between the null-check and write
+            }
         }
     }
 

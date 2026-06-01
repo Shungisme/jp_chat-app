@@ -15,6 +15,7 @@ public class VectorIconButton extends JButton {
     private final int iconSize;
     private final int pad;
     private Color hoverColor;
+    private boolean active;
 
     public VectorIconButton(Icons.Painter painter, String tooltip, int iconSize) {
         this.painter = painter;
@@ -35,6 +36,10 @@ public class VectorIconButton extends JButton {
     /** Tint shown on hover (e.g. red for a destructive close button). */
     public VectorIconButton hover(Color c) { this.hoverColor = c; return this; }
 
+    /** Toggle a persistent "lit" state — used for on/off icon toggles like mic. */
+    public void setActive(boolean on) { if (this.active != on) { this.active = on; repaint(); } }
+    public boolean isActive() { return active; }
+
     @Override public Dimension getPreferredSize() {
         int s = iconSize + pad * 2;
         return new Dimension(s, s);
@@ -49,12 +54,13 @@ public class VectorIconButton extends JButton {
         boolean rollover = getModel().isRollover();
         boolean pressed = getModel().isPressed();
 
-        if (rollover || pressed) {
+        if (rollover || pressed || active) {
             g2.setColor(Theme.accentSoft());
             g2.fill(new RoundRectangle2D.Float(1, 1, w - 2, h - 2, 10, 10));
         }
         Color c = !isEnabled() ? Theme.border()
                 : pressed ? Theme.accent()
+                : active ? Theme.accent()
                 : rollover ? hoverColor
                 : Theme.textSecondary();
         g2.translate((w - iconSize) / 2, (h - iconSize) / 2);

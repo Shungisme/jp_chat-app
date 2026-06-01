@@ -6,6 +6,7 @@ import com.chatapp.model.Message;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +25,12 @@ public class Server {
     private final Map<String, ClientHandler> clients = new ConcurrentHashMap<>();
     private final UserStore users = new UserStore();
     private final GroupStore groups = new GroupStore();
+    // groupId -> usernames currently in the voice / video room. Maintained
+    // server-side so a joining user gets a roster snapshot, presence broadcasts
+    // only go to members already in the room, disconnect cleanup announces
+    // leaves, and the server knows when a room becomes empty (→ END notice).
+    private final Map<String, Set<String>> voiceRooms = new ConcurrentHashMap<>();
+    private final Map<String, Set<String>> videoRooms = new ConcurrentHashMap<>();
     private Consumer<String> logListener;
     private Consumer<Set<String>> clientsListener;
 
@@ -117,6 +124,108 @@ public class Server {
         Group g = groups.get(msg.getTarget());
         if (g == null) return;
         for (String member : g.getMembers()) {
+            if (member.equals(msg.getSender())) continue;
+            ClientHandler h = clients.get(member);
+            if (h != null) h.send(msg);
+        }
+    }
+
+    // Returns true if the room was empty before this join — caller uses that
+    // signal to broadcast a START notice to the whole group exactly once.
+    public boolean joinVoiceRoom(String groupId, String username) {
+        return joinRoom(voiceRooms, groupId, username);
+    }
+
+    public boolean joinVideoRoom(String groupId, String username) {
+        return joinRoom(videoRooms, groupId, username);
+    }
+
+    // Returns true if the room became empty as a result of this leave.
+    public boolean leaveVoiceRoom(String groupId, String username) {
+        return leaveRoom(voiceRooms, groupId, username);
+    }
+
+    public boolean leaveVideoRoom(String groupId, String username) {
+        return leaveRoom(videoRooms, groupId, username);
+    }
+
+    public Set<String> voiceRoomMembers(String groupId) {
+        return roomMembers(voiceRooms, groupId);
+    }
+
+    public Set<String> videoRoomMembers(String groupId) {
+        return roomMembers(videoRooms, groupId);
+    }
+
+    public Map<String, Set<String>> dropFromAllVoiceRooms(String username) {
+        return dropFromAllRooms(voiceRooms, username);
+    }
+
+    public Map<String, Set<String>> dropFromAllVideoRooms(String username) {
+        return dropFromAllRooms(videoRooms, username);
+    }
+
+    // Voice / video chunks only flow to members currently in the room — non-
+    // joiners wouldn't play them and it would just waste bandwidth.
+    public void broadcastToVoiceRoom(Message msg) throws IOException {
+        broadcastToRoom(voiceRooms, msg);
+    }
+
+    public void broadcastToVideoRoom(Message msg) throws IOException {
+        broadcastToRoom(videoRooms, msg);
+    }
+
+    public void broadcastToGroup(String groupId, Message msg) throws IOException {
+        Group g = groups.get(groupId);
+        if (g == null) return;
+        for (String member : g.getMembers()) {
+            ClientHandler h = clients.get(member);
+            if (h != null) h.send(msg);
+        }
+    }
+
+    private static boolean joinRoom(Map<String, Set<String>> rooms, String groupId, String username) {
+        Set<String> room = rooms.computeIfAbsent(groupId, k -> ConcurrentHashMap.newKeySet());
+        boolean wasEmpty = room.isEmpty();
+        room.add(username);
+        return wasEmpty;
+    }
+
+    private static boolean leaveRoom(Map<String, Set<String>> rooms, String groupId, String username) {
+        Set<String> room = rooms.get(groupId);
+        if (room == null) return false;
+        room.remove(username);
+        if (room.isEmpty()) {
+            rooms.remove(groupId);
+            return true;
+        }
+        return false;
+    }
+
+    private static Set<String> roomMembers(Map<String, Set<String>> rooms, String groupId) {
+        Set<String> room = rooms.get(groupId);
+        return room == null ? Set.of() : Set.copyOf(room);
+    }
+
+    // Returns {groupId -> remaining participants} for rooms the user was in.
+    // Each entry that emptied is also removed; the caller uses an emptiness
+    // check to know whether to emit an END notice for that group.
+    private static Map<String, Set<String>> dropFromAllRooms(
+            Map<String, Set<String>> rooms, String username) {
+        Map<String, Set<String>> affected = new HashMap<>();
+        for (Map.Entry<String, Set<String>> e : rooms.entrySet()) {
+            if (e.getValue().remove(username)) {
+                affected.put(e.getKey(), Set.copyOf(e.getValue()));
+                if (e.getValue().isEmpty()) rooms.remove(e.getKey());
+            }
+        }
+        return affected;
+    }
+
+    private void broadcastToRoom(Map<String, Set<String>> rooms, Message msg) throws IOException {
+        Set<String> room = rooms.get(msg.getTarget());
+        if (room == null) return;
+        for (String member : room) {
             if (member.equals(msg.getSender())) continue;
             ClientHandler h = clients.get(member);
             if (h != null) h.send(msg);

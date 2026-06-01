@@ -113,6 +113,73 @@ public class ConversationView extends JPanel {
         addRow(sender, mine, ts, null, fileName, savedPath, hint, status, true);
     }
 
+    /**
+     * Centered system bubble used for call start / end notices. If onClick is
+     * non-null the hint renders as a clickable accent-colored link.
+     */
+    public void addCallNotice(long ts, String title, String hint, Runnable onClick) {
+        if (!hasMessages) { removeEmptyState(); hasMessages = true; }
+        ensureTypingRemoved();
+        boolean nearBottom = isNearBottom();
+        maybeAddDayDivider(ts);
+
+        UiKit.RoundedPanel card = new UiKit.RoundedPanel(Theme.RADIUS_CARD,
+                Theme.surfaceCard(), new BorderLayout());
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Theme.border()),
+                UiKit.pad(Theme.SP_2, Theme.SP_3, Theme.SP_2, Theme.SP_3)));
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
+        JLabel tlb = new JLabel(title);
+        tlb.setFont(Theme.font(Font.BOLD, 13));
+        tlb.setForeground(Theme.textPrimary());
+        tlb.setAlignmentX(CENTER_ALIGNMENT);
+        text.add(tlb);
+
+        if (hint != null && !hint.isEmpty()) {
+            JLabel hlb = new JLabel(hint);
+            hlb.setFont(Theme.timestamp());
+            hlb.setForeground(onClick != null ? Theme.accent() : Theme.textSecondary());
+            hlb.setAlignmentX(CENTER_ALIGNMENT);
+            if (onClick != null) {
+                hlb.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                hlb.addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override public void mouseClicked(java.awt.event.MouseEvent e) {
+                        onClick.run();
+                    }
+                });
+            }
+            text.add(Box.createVerticalStrut(2));
+            text.add(hlb);
+        }
+        card.add(text, BorderLayout.CENTER);
+
+        JPanel row = new JPanel();
+        row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(Box.createHorizontalGlue());
+        row.add(card);
+        row.add(Box.createHorizontalGlue());
+
+        messages.add(Box.createVerticalStrut(Theme.SP_3));
+        messages.add(row);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+
+        // Reset run grouping — the next regular bubble starts a fresh run.
+        lastSender = null;
+        lastTs = ts;
+        lastDate = dateOf(ts);
+
+        messages.revalidate();
+        messages.repaint();
+        if (nearBottom) scrollToBottom();
+        else showNewPill();
+    }
+
     public void setTyping(boolean on, String who) {
         ensureTypingRemoved();
         if (on) {
