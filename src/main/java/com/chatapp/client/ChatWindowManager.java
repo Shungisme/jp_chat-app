@@ -1,6 +1,7 @@
 package com.chatapp.client;
 
 import com.chatapp.model.Message;
+import com.chatapp.util.HistoryManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -260,6 +261,12 @@ public class ChatWindowManager {
         SwingUtilities.invokeLater(() -> {
             ChatPanel p = panels.get(key);
             if (p == null) {
+                // Persist before badging — otherwise the user clicks the badge
+                // to open the tab, ChatPanel.loadHistory() runs against a file
+                // that never received this message, and the body is silently
+                // lost. ChatPanel.receive() does the append when the panel is
+                // already open; this branch mirrors that for the closed case.
+                HistoryManager.append(client.getUsername(), key, msg);
                 int n = unread.computeIfAbsent(key, k -> new AtomicInteger()).incrementAndGet();
                 if (badgeListener != null) badgeListener.accept(key, n);
             } else {
