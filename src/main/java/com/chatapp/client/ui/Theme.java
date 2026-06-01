@@ -5,6 +5,9 @@ import com.formdev.flatlaf.FlatLightLaf;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 import java.util.prefs.Preferences;
 
 /**
@@ -96,12 +99,71 @@ public final class Theme {
 
     public static void setDark(boolean value) {
         if (dark == value) return;
+        // Snapshot OLD token values BEFORE flipping the flag. Any component
+        // whose foreground / background / fill matches an OLD value gets
+        // rewritten to the NEW value of the same token — that way every
+        // `setForeground(Theme.x())` and `new RoundedPanel(Theme.surfaceCard())`
+        // call site stays correct across a toggle without us having to touch
+        // each one to register a listener.
+        Map<Color, Supplier<Color>> remap = snapshotTokens();
         dark = value;
         PREFS.putBoolean("dark", value);
         applyLaf();
         tuneDefaults();
         for (Window w : Window.getWindows()) {
             SwingUtilities.updateComponentTreeUI(w);
+            refreshThemedColors(w, remap);
+            w.repaint();
+        }
+    }
+
+    private static Map<Color, Supplier<Color>> snapshotTokens() {
+        // Last put wins on color collisions (e.g. bgApp() == surfaceCard() ==
+        // WHITE in light mode). Order so the more "primary" token wins so
+        // ambiguous components land on the right side in the new theme.
+        LinkedHashMap<Color, Supplier<Color>> m = new LinkedHashMap<>();
+        m.put(accent(), Theme::accent);
+        m.put(accentHover(), Theme::accentHover);
+        m.put(accentSoft(), Theme::accentSoft);
+        m.put(border(), Theme::border);
+        m.put(textSecondary(), Theme::textSecondary);
+        m.put(textPrimary(), Theme::textPrimary);
+        m.put(bubbleOther(), Theme::bubbleOther);
+        m.put(surfaceCard(), Theme::surfaceCard);
+        m.put(bgSidebar(), Theme::bgSidebar);
+        m.put(bgApp(), Theme::bgApp);
+        return m;
+    }
+
+    private static void refreshThemedColors(Component c, Map<Color, Supplier<Color>> remap) {
+        if (c instanceof JComponent jc) {
+            Color fg = jc.getForeground();
+            if (fg != null) {
+                Supplier<Color> s = remap.get(fg);
+                if (s != null) jc.setForeground(s.get());
+            }
+            Color bg = jc.getBackground();
+            if (bg != null) {
+                Supplier<Color> s = remap.get(bg);
+                if (s != null) jc.setBackground(s.get());
+            }
+        }
+        if (c instanceof UiKit.RoundedPanel rp) {
+            Color fill = rp.getFill();
+            if (fill != null) {
+                Supplier<Color> s = remap.get(fill);
+                if (s != null) rp.setFill(s.get());
+            }
+        }
+        if (c instanceof BubbleText bt) {
+            Color tc = bt.getColor();
+            if (tc != null) {
+                Supplier<Color> s = remap.get(tc);
+                if (s != null) bt.setColor(s.get());
+            }
+        }
+        if (c instanceof Container ct) {
+            for (Component ch : ct.getComponents()) refreshThemedColors(ch, remap);
         }
     }
 
