@@ -282,6 +282,8 @@ public class MainFrame extends JFrame {
             case GROUP_VIDEO -> windows.dispatchGroupVideo(msg);
             case GROUP_INVITE -> windows.handleGroupInvite(msg);
             case GROUP_LIST -> windows.handleGroupList(msg);
+            case GROUP_INFO -> windows.handleGroupInfo(msg);
+            case GROUP_REMOVED -> windows.handleGroupRemoved(msg);
             case KICKED -> SwingUtilities.invokeLater(() -> doLogout(true, msg.getContent()));
             case VOICE_INVITE -> windows.handleVoiceInvite(msg);
             case VOICE_ACCEPT -> windows.handleVoiceAccept(msg);

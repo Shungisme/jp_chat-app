@@ -341,6 +341,56 @@ public class ChatWindowManager {
         });
     }
 
+    // ---------------- members management ----------------
+
+    private final Map<String, java.util.function.Consumer<GroupInfo>> pendingInfoRequests
+            = new ConcurrentHashMap<>();
+
+    public void queryGroupMembers(String groupId, java.util.function.Consumer<GroupInfo> onResult) {
+        pendingInfoRequests.put(groupId, onResult);
+        try {
+            client.send(new Message(Message.Type.GROUP_QUERY,
+                    client.getUsername(), groupId, ""));
+        } catch (Exception ex) {
+            pendingInfoRequests.remove(groupId);
+            onResult.accept(null);
+        }
+    }
+
+    public void handleGroupInfo(Message msg) {
+        String content = msg.getContent();
+        if (content == null || content.isBlank()) return;
+        String[] parts = content.split("\\|", 3);
+        if (parts.length < 2) return;
+        String groupId = parts[0].trim();
+        String owner = parts[1].trim();
+        java.util.List<String> members = new java.util.ArrayList<>();
+        if (parts.length == 3 && !parts[2].isBlank()) {
+            for (String m : parts[2].split(",")) {
+                String mt = m.trim();
+                if (!mt.isEmpty()) members.add(mt);
+            }
+        }
+        GroupInfo info = new GroupInfo(groupId, owner, members);
+        java.util.function.Consumer<GroupInfo> cb = pendingInfoRequests.remove(groupId);
+        if (cb != null) SwingUtilities.invokeLater(() -> cb.accept(info));
+    }
+
+    public void handleGroupRemoved(Message msg) {
+        String groupId = msg.getContent();
+        if (groupId == null || groupId.isBlank()) return;
+        SwingUtilities.invokeLater(() -> {
+            String name = joinedGroups.remove(groupId);
+            if (groupsListener != null) groupsListener.accept(Map.copyOf(joinedGroups));
+            closeGroup(groupId);
+            if (mainFrame != null) {
+                JOptionPane.showMessageDialog(mainFrame,
+                        "Bạn đã bị xoá khỏi nhóm " + (name != null ? name : groupId) + ".",
+                        "Đã rời nhóm", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+    }
+
     // Parses payload "id|name" used by GROUP_INVITE.
     private static String[] splitGroupPayload(String payload) {
         if (payload == null) return null;

@@ -37,6 +37,7 @@ public class GroupPanel extends JPanel {
     private final JButton fileButton = new JButton("📎");
     private final JButton voiceButton = new JButton("🎙");
     private final JButton videoButton = new JButton("📹");
+    private final JButton membersButton = new JButton("👥");
     private final JButton emojiButton = new JButton("😀");
     private final JCheckBox enterSendsBox = new JCheckBox("ENTER gửi", true);
 
@@ -100,6 +101,8 @@ public class GroupPanel extends JPanel {
         fileButton.setToolTipText("Gửi file cho cả nhóm");
         voiceButton.setToolTipText("Bật / tắt voice nhóm");
         videoButton.setToolTipText("Mở phòng video nhóm");
+        membersButton.setToolTipText("Xem thành viên nhóm");
+        buttons.add(membersButton);
         buttons.add(fileButton);
         buttons.add(voiceButton);
         buttons.add(videoButton);
@@ -117,6 +120,7 @@ public class GroupPanel extends JPanel {
         fileButton.addActionListener(this::onPickFile);
         voiceButton.addActionListener(e -> toggleVoice());
         videoButton.addActionListener(e -> openVideoRoom());
+        membersButton.addActionListener(e -> showMembers());
         emojiButton.addActionListener(e -> showEmojiPopup());
 
         installKeyBindings();
@@ -143,6 +147,14 @@ public class GroupPanel extends JPanel {
 
     private void openVideoRoom() {
         if (manager != null) manager.openGroupVideoRoom(groupId, groupName);
+    }
+
+    private void showMembers() {
+        if (manager == null) return;
+        manager.queryGroupMembers(groupId, info -> {
+            Frame owner = (Frame) SwingUtilities.getWindowAncestor(this);
+            new GroupMembersDialog(owner, client, groupId, groupName, info).setVisible(true);
+        });
     }
 
     private void toggleVoice() {
